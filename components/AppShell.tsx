@@ -1,0 +1,261 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useMemo } from "react";
+import { cdn, useCdn } from "@/lib/store";
+import { relTime } from "@/lib/utils";
+import { brandStyle } from "@/lib/seed";
+import { Icon, type IconName } from "./Icon";
+import { toast } from "./Toast";
+
+type NavEntry = { href: string; label: string; icon: IconName; count?: number };
+
+const titleFor = (path: string): string => {
+  if (path === "/dashboard" || path.startsWith("/dashboard/")) return "Dashboard";
+  if (path.startsWith("/campaigns")) return "Campaign list";
+  if (path.startsWith("/projects/ts/")) return "Project sheet";
+  if (path.startsWith("/projects")) return "Project list";
+  if (path.startsWith("/data-ads")) return "Data ads";
+  if (path.startsWith("/automation")) return "Automation link";
+  if (path.startsWith("/scraping")) return "Scraping monitoring";
+  if (path.startsWith("/agency")) return "Agency workspace";
+  return "CDN";
+};
+
+export function AppShell({ children }: { children: React.ReactNode }) {
+  const state = useCdn();
+  const pathname = usePathname();
+  const router = useRouter();
+  const { role, brandId, sidebarCollapsed } = state.ui;
+  const brand = state.brands.find((b) => b.id === brandId) ?? state.brands[0];
+  const brandStyleValue = brandStyle(brand?.hue ?? 210);
+
+  const activeCampaign =
+    state.campaigns.find((c) => c.id === state.ui.campaignId) ??
+    state.campaigns.find((c) => c.brandId === brandId);
+  const activeGroup = state.ui.groupId ? state.groups.find((g) => g.id === state.ui.groupId) : null;
+
+  const counts = useMemo(
+    () => ({
+      projects: state.projects.filter(
+        (p) => p.brandId === brandId && p.campaignId === activeCampaign?.id,
+      ).length,
+      dataAds: state.dataAds.filter(
+        (d) => d.brandId === brandId && d.campaignId === activeCampaign?.id,
+      ).length,
+    }),
+    [state.projects, state.dataAds, brandId, activeCampaign?.id],
+  );
+
+  const activeProjectType = useMemo(() => {
+    if (!pathname.startsWith("/projects/ts/")) return null;
+    const id = pathname.split("/")[3];
+    return state.projects.find((p) => p.id === id)?.type ?? null;
+  }, [pathname, state.projects]);
+
+  useEffect(() => {
+    if (role === "agency" && !/^\/(agency|projects|data-ads)/.test(pathname)) {
+      router.replace("/agency");
+    }
+  }, [role, pathname, router]);
+
+  const isActive = (href: string) => {
+    if (href === "/dashboard") return pathname === "/dashboard";
+    if (href === "/projects/all") return pathname.startsWith("/projects");
+    if (href === "/data-ads") return pathname.startsWith("/data-ads");
+    return pathname === href;
+  };
+
+  const navItem = (n: NavEntry, sub = false) => (
+    <Link
+      key={n.href}
+      href={n.href}
+      className={`nav-item ${sub ? "is-sub" : ""} ${isActive(n.href) ? "is-active" : ""}`}
+      title={sidebarCollapsed ? n.label : undefined}
+    >
+      {!sub && <Icon name={n.icon} size={15} />}
+      <span className="truncate">{n.label}</span>
+      {typeof n.count === "number" && n.count > 0 && <span className="nav-count">{n.count}</span>}
+    </Link>
+  );
+
+  const perf: NavEntry[] = [
+    { href: "/dashboard/kol", label: "KOL performance", icon: "kol" },
+    { href: "/dashboard/connector", label: "Connector performance", icon: "connector" },
+    { href: "/dashboard/attend", label: "Attend performance", icon: "attend" },
+    { href: "/dashboard/ads", label: "KOL Ads performance", icon: "ads" },
+  ];
+
+  const dataNav: NavEntry[] = [
+    { href: "/data-ads", label: "Data Ads", icon: "table", count: counts.dataAds },
+    { href: "/automation", label: "Automation link", icon: "link" },
+    { href: "/scraping", label: "Scraping monitoring", icon: "radar" },
+  ];
+
+  const agencyNav: NavEntry[] = [
+    { href: "/agency", label: "My workspace", icon: "dashboard" },
+    { href: "/projects/all", label: "Project list", icon: "projects", count: counts.projects },
+    { href: "/data-ads", label: "Data Ads", icon: "table", count: counts.dataAds },
+  ];
+
+  const scopeLabel = pathname.startsWith("/dashboard") && activeGroup ? activeGroup.name : activeCampaign?.name;
+
+  return (
+    <div className="shell">
+      <aside className={`sidebar ${sidebarCollapsed ? "is-collapsed" : ""}`}>
+        <div className="sidebar-logo">
+          <Link href="/" className="flex items-center gap-2 overflow-hidden" aria-label="Connector home">
+            <span className="logo-word">Connector</span>
+          </Link>
+          <button
+            className="ml-auto grid h-7 w-7 place-items-center rounded-md text-[var(--muted)] hover:bg-white"
+            onClick={() => cdn.setUI({ sidebarCollapsed: !sidebarCollapsed })}
+            aria-label="Toggle sidebar"
+          >
+            <Icon name="panel" size={15} />
+          </button>
+        </div>
+
+        <div className="sidebar-scroll">
+          {role === "agency" ? (
+            <>
+              <div className="nav-section">Agency workspace</div>
+              {agencyNav.map((n) => navItem(n))}
+              <div className="mt-4 rounded-xl border border-[#cfe0ff] bg-[#eef5ff] p-3 text-[11px] leading-[1.5] text-[#2b4a7a]">
+                <div className="mb-1 text-[9.5px] font-semibold uppercase tracking-[0.12em]">Assigned to you</div>
+                {brand?.name} · {activeCampaign?.name}
+              </div>
+            </>
+          ) : (
+            <>
+              {navItem({ href: "/dashboard", label: "Dashboard", icon: "dashboard" })}
+
+              <div className="nav-section">Performance</div>
+              {perf.map((n) => navItem(n, true))}
+
+              <div className="nav-section">Campaign</div>
+              {navItem({ href: "/campaigns", label: "Campaign list", icon: "list" })}
+
+              <div className="nav-section">Project list</div>
+              {navItem({ href: "/projects/all", label: "All projects", icon: "projects", count: counts.projects })}
+
+              <div className="nav-section">Data</div>
+              {dataNav.map((n) => navItem(n))}
+            </>
+          )}
+        </div>
+
+        <div className="sidebar-foot">
+          <Link href="/" className="nav-item !mb-0">
+            <Icon name="arrowLeft" size={15} />
+            <span>All brands</span>
+          </Link>
+          {!sidebarCollapsed && (
+            <div className="sidebar-foot-note mt-2 px-2 pb-1 text-[10px] leading-4 text-[var(--muted-2)]">
+              Signed in as <span className="font-semibold text-[var(--ink-2)]">Spektrum</span> · CDN v2 prototype
+            </div>
+          )}
+        </div>
+      </aside>
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="topbar">
+          <div className="flex min-w-0 items-center gap-2">
+            <button
+              className="icon-btn"
+              onClick={() => cdn.setUI({ sidebarCollapsed: !sidebarCollapsed })}
+              aria-label="Toggle sidebar"
+            >
+              <Icon name="panel" size={15} />
+            </button>
+
+            <Link href="/" className="brand-chip">
+              <span
+                className="brand-avatar h-[22px] w-[22px] text-[9px]"
+                style={{ background: brandStyleValue.bg, color: brandStyleValue.fg }}
+              >
+                {brand?.initials}
+              </span>
+              <span className="max-w-[110px] truncate">{brand?.name}</span>
+              <Icon name="chevronDown" size={12} className="text-[var(--muted-2)]" />
+            </Link>
+
+            <div className="hidden h-4 w-px bg-[var(--line-2)] sm:block" />
+
+            <Link
+              href="/campaigns"
+              className="chip hidden max-w-[220px] !h-[30px] min-[1100px]:inline-flex hover:border-[var(--line-3)]"
+              title={activeGroup ? "Dashboard scope: campaign group" : "Active campaign"}
+            >
+              <span className="dot bg-[#2f6bff]" />
+              <span className="truncate normal-case tracking-normal">{scopeLabel}</span>
+              <Icon name="chevronDown" size={11} className="shrink-0 text-[var(--muted-2)]" />
+            </Link>
+
+            <button
+              className="btn btn-sm ml-1 hidden xl:inline-flex"
+              onClick={() => {
+                cdn.syncNow();
+                toast("Sync queued · links refreshed from TS & TL");
+              }}
+              title={`Last sync ${relTime(state.ui.lastSync)}`}
+            >
+              <Icon name="refresh" size={12} />
+              Sync data
+            </button>
+
+            <div className="mx-1 hidden h-4 w-px bg-[var(--line-2)] xl:block" />
+            <div className="hidden truncate text-[13px] font-semibold xl:block">{titleFor(pathname)}</div>
+          </div>
+
+          <div className="ml-auto flex items-center gap-2">
+            <div className="hidden items-center gap-1.5 text-[10px] text-[var(--muted-2)] 2xl:flex">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#12b76a]" />
+              Synced {relTime(state.ui.lastSync)}
+            </div>
+
+            <div className="seg hidden h-[30px] !bg-white/80 md:flex">
+              <button
+                className={`!h-[23px] !min-w-0 !px-2.5 !text-[9.5px] !uppercase !tracking-[0.08em] ${role === "spektrum" ? "is-on" : ""}`}
+                onClick={() => {
+                  cdn.setUI({ role: "spektrum" });
+                  router.push("/dashboard");
+                }}
+              >
+                Spektrum
+              </button>
+              <button
+                className={`!h-[23px] !min-w-0 !px-2.5 !text-[9.5px] !uppercase !tracking-[0.08em] ${role === "agency" ? "is-on" : ""}`}
+                onClick={() => {
+                  cdn.setUI({ role: "agency" });
+                  router.push("/agency");
+                }}
+              >
+                Agency
+              </button>
+            </div>
+
+            <span className="chip hidden lg:inline-flex" title="Campaign Dashboard">
+              <Icon name="dashboard" size={11} />
+              CDN
+            </span>
+
+            <button
+              className="btn btn-sm"
+              onClick={() => {
+                toast("Signed out of the prototype — pick a brand to come back");
+                router.push("/");
+              }}
+            >
+              Sign out
+              <Icon name="logout" size={12} />
+            </button>
+          </div>
+        </header>
+
+        <main className="min-w-0 flex-1 pb-14">{children}</main>
+      </div>
+    </div>
+  );
+}

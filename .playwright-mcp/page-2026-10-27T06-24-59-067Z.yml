@@ -1,0 +1,5 @@
+- generic [active] [ref=f5e1]:
+  - generic [ref=f5e3]:
+    - generic [ref=f5e4]: Connector
+    - generic [ref=f5e7]: Loading workspace
+  - button "Open Next.js Dev Tools" [ref=f5e13] [cursor=pointer]

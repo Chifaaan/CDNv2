@@ -1,0 +1,407 @@
+"use client";
+
+import { useSyncExternalStore } from "react";
+import type {
+  AutomationRow,
+  Campaign,
+  CampaignGroup,
+  CampaignType,
+  DataAds,
+  DataAdsSheet,
+  Project,
+  ProjectType,
+  SheetRow,
+  State,
+  UIState,
+} from "./types";
+import { createSeed, STORAGE_KEY, STATE_VERSION } from "./seed";
+import { buildShortcodeIndex, lookupCampaign, cleanPublishLink, extractShortcode } from "./shortcode";
+import { emptySheetRow } from "./sheet";
+
+let state: State | null = null;
+let serverState: State | null = null;
+const listeners = new Set<() => void>();
+
+function readStorage(): State | null {
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as State;
+    if (!parsed || parsed.version !== STATE_VERSION) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function getState(): State {
+  if (!state) state = readStorage() ?? createSeed();
+  return state;
+}
+
+function getServerState(): State {
+  if (!serverState) serverState = createSeed();
+  return serverState;
+}
+
+function subscribe(cb: () => void) {
+  listeners.add(cb);
+  return () => {
+    listeners.delete(cb);
+  };
+}
+
+function emit() {
+  listeners.forEach((l) => l());
+}
+
+function persist() {
+  try {
+    if (state) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    /* quota — prototype keeps working in memory */
+  }
+}
+
+function commit(next: State) {
+  state = next;
+  persist();
+  emit();
+}
+
+const nowIso = () => new Date().toISOString();
+
+export function useCdn(): State {
+  return useSyncExternalStore(subscribe, getState, getServerState);
+}
+
+export const cdn = {
+  setUI(patch: Partial<UIState>) {
+    const s = getState();
+    commit({ ...s, ui: { ...s.ui, ...patch } });
+  },
+
+  setBrand(brandId: string) {
+    const s = getState();
+    const firstCampaign = s.campaigns.find((c) => c.brandId === brandId);
+    commit({
+      ...s,
+      ui: { ...s.ui, brandId, campaignId: firstCampaign?.id ?? s.ui.campaignId, groupId: null },
+    });
+  },
+
+  setCampaign(campaignId: string) {
+    const s = getState();
+    commit({ ...s, ui: { ...s.ui, campaignId, groupId: null } });
+  },
+
+  openGroup(groupId: string) {
+    const s = getState();
+    commit({ ...s, ui: { ...s.ui, groupId } });
+  },
+
+  closeGroup() {
+    const s = getState();
+    commit({ ...s, ui: { ...s.ui, groupId: null } });
+  },
+
+  syncNow() {
+    const s = getState();
+    commit({ ...s, ui: { ...s.ui, lastSync: nowIso() } });
+  },
+
+  resetDemo() {
+    commit(createSeed());
+  },
+
+  /* ---------------- campaigns ---------------- */
+
+  addCampaign(input: {
+    brandId: string;
+    name: string;
+    type: CampaignType;
+    agency: string;
+    start: string;
+    end: string;
+    status?: Campaign["status"];
+  }) {
+    const s = getState();
+    const campaign: Campaign = {
+      id: `cmp_${Math.random().toString(36).slice(2, 8)}`,
+      brandId: input.brandId,
+      name: input.name,
+      type: input.type,
+      agency: input.agency,
+      status: input.status ?? "live",
+      start: input.start,
+      end: input.end,
+      metrics: {
+        organic: 0,
+        gs: 0,
+        engagement: 0,
+        content: 0,
+        followers: 0,
+        adsVideo: 0,
+        impressions: 0,
+        reach: 0,
+        materials: 0,
+        registered: 0,
+        attended: 0,
+      },
+      series: new Array(24).fill(0),
+    };
+    commit({ ...s, campaigns: [campaign, ...s.campaigns] });
+    return campaign;
+  },
+
+  updateCampaign(id: string, patch: Partial<Campaign>) {
+    const s = getState();
+    commit({ ...s, campaigns: s.campaigns.map((c) => (c.id === id ? { ...c, ...patch } : c)) });
+  },
+
+  deleteCampaign(id: string) {
+    const s = getState();
+    const projects = s.projects.filter((p) => p.campaignId !== id);
+    const dataAds = s.dataAds.filter((d) => d.campaignId !== id);
+    const groups = s.groups
+      .map((g) => ({ ...g, campaignIds: g.campaignIds.filter((c) => c !== id) }))
+      .filter((g) => g.campaignIds.length > 0);
+    const automation = s.automation.map((r) => (r.campaignId === id ? { ...r, campaignId: null } : r));
+    const fallback = s.campaigns.find((c) => c.brandId === s.ui.brandId && c.id !== id)?.id ?? "";
+
+    commit({
+      ...s,
+      projects,
+      dataAds,
+      groups,
+      automation,
+      campaigns: s.campaigns.filter((c) => c.id !== id),
+      ui: {
+        ...s.ui,
+        campaignId: s.ui.campaignId === id ? fallback : s.ui.campaignId,
+        groupId: s.ui.groupId && !groups.some((g) => g.id === s.ui.groupId) ? null : s.ui.groupId,
+      },
+    });
+  },
+
+  /* ---------------- groups ---------------- */
+
+  addGroup(input: { brandId: string; name: string; description: string; campaignIds: string[] }) {
+    const s = getState();
+    const group: CampaignGroup = { id: `grp_${Math.random().toString(36).slice(2, 8)}`, ...input };
+    commit({ ...s, groups: [group, ...s.groups] });
+    return group;
+  },
+
+  updateGroup(id: string, patch: Partial<CampaignGroup>) {
+    const s = getState();
+    commit({ ...s, groups: s.groups.map((g) => (g.id === id ? { ...g, ...patch } : g)) });
+  },
+
+  deleteGroup(id: string) {
+    const s = getState();
+    commit({
+      ...s,
+      groups: s.groups.filter((g) => g.id !== id),
+      ui: { ...s.ui, groupId: s.ui.groupId === id ? null : s.ui.groupId },
+    });
+  },
+
+  /* ---------------- project sheets ---------------- */
+
+  addProject(input: { brandId: string; campaignId: string; type: ProjectType; agency: string }) {
+    const s = getState();
+    const campaign = s.campaigns.find((c) => c.id === input.campaignId);
+    const id = `prj_${Math.random().toString(36).slice(2, 8)}`;
+    const rows: SheetRow[] = Array.from({ length: 3 }, () => emptySheetRow());
+
+    const project: Project = {
+      id,
+      brandId: input.brandId,
+      campaignId: input.campaignId,
+      type: input.type,
+      agency: input.agency,
+      pmLink: `https://cdn.spektrum.id/pm/${(campaign?.name ?? "project")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "")}-${input.type.toLowerCase().replace("_", "-")}-${id.slice(-4)}`,
+      createdAt: new Date().toISOString().slice(0, 10),
+      savedAt: nowIso(),
+      rows,
+    };
+    commit({ ...s, projects: [project, ...s.projects] });
+    return project;
+  },
+
+  setProjectRows(projectId: string, rows: SheetRow[]) {
+    const s = getState();
+    commit({
+      ...s,
+      projects: s.projects.map((p) => (p.id === projectId ? { ...p, rows, savedAt: nowIso() } : p)),
+    });
+  },
+
+  saveProject(projectId: string) {
+    const s = getState();
+    commit({
+      ...s,
+      projects: s.projects.map((p) => (p.id === projectId ? { ...p, savedAt: nowIso() } : p)),
+    });
+  },
+
+  /* ---------------- data ads ---------------- */
+
+  addDataAds(input: { brandId: string; campaignId: string; name: string; agency: string }) {
+    const s = getState();
+    const id = `da_${Math.random().toString(36).slice(2, 8)}`;
+    const sheet: DataAdsSheet = { id: `${id}_s0`, name: "Sheet 1", rows: [] };
+    const dataAds: DataAds = {
+      id,
+      brandId: input.brandId,
+      campaignId: input.campaignId,
+      name: input.name,
+      agency: input.agency,
+      createdAt: new Date().toISOString().slice(0, 10),
+      savedAt: nowIso(),
+      sheets: [sheet],
+    };
+    commit({ ...s, dataAds: [dataAds, ...s.dataAds] });
+    return dataAds;
+  },
+
+  addDataAdsSheet(dataAdsId: string) {
+    const s = getState();
+    const container = s.dataAds.find((d) => d.id === dataAdsId);
+    if (!container) return null;
+    const sheet: DataAdsSheet = {
+      id: `${container.id}_s${Math.random().toString(36).slice(2, 6)}`,
+      name: `Sheet ${container.sheets.length + 1}`,
+      rows: [],
+    };
+    commit({
+      ...s,
+      dataAds: s.dataAds.map((d) =>
+        d.id === dataAdsId ? { ...d, sheets: [...d.sheets, sheet], savedAt: nowIso() } : d,
+      ),
+    });
+    return sheet;
+  },
+
+  renameDataAdsSheet(dataAdsId: string, sheetId: string, name: string) {
+    const s = getState();
+    commit({
+      ...s,
+      dataAds: s.dataAds.map((d) =>
+        d.id === dataAdsId
+          ? { ...d, savedAt: nowIso(), sheets: d.sheets.map((sh) => (sh.id === sheetId ? { ...sh, name } : sh)) }
+          : d,
+      ),
+    });
+  },
+
+  deleteDataAdsSheet(dataAdsId: string, sheetId: string) {
+    const s = getState();
+    commit({
+      ...s,
+      dataAds: s.dataAds.map((d) => {
+        if (d.id !== dataAdsId || d.sheets.length <= 1) return d;
+        return { ...d, savedAt: nowIso(), sheets: d.sheets.filter((sh) => sh.id !== sheetId) };
+      }),
+    });
+  },
+
+  setDataAdsRows(dataAdsId: string, sheetId: string, rows: SheetRow[]) {
+    const s = getState();
+    commit({
+      ...s,
+      dataAds: s.dataAds.map((d) =>
+        d.id === dataAdsId
+          ? { ...d, savedAt: nowIso(), sheets: d.sheets.map((sh) => (sh.id === sheetId ? { ...sh, rows } : sh)) }
+          : d,
+      ),
+    });
+  },
+
+  saveDataAds(dataAdsId: string) {
+    const s = getState();
+    commit({
+      ...s,
+      dataAds: s.dataAds.map((d) => (d.id === dataAdsId ? { ...d, savedAt: nowIso() } : d)),
+    });
+  },
+
+  deleteDataAds(dataAdsId: string) {
+    const s = getState();
+    commit({ ...s, dataAds: s.dataAds.filter((d) => d.id !== dataAdsId) });
+  },
+
+  /* ---------------- automation ---------------- */
+
+  setAutomationRows(rows: AutomationRow[]) {
+    const s = getState();
+    commit({ ...s, automation: rows });
+  },
+
+  runMatching(target: { brandId?: string }) {
+    const s = getState();
+    const index = buildShortcodeIndex(s.projects);
+    const brandId = target.brandId ?? s.ui.brandId;
+    let matched = 0;
+    let unresolved = 0;
+    let eligible = 0;
+
+    const automation = s.automation.map((r) => {
+      if (r.brandId !== brandId || r.campaignId) return r;
+      if (!r.shortcode) return r;
+      eligible++;
+      const hit = lookupCampaign(index, brandId, r.shortcode);
+      if (hit) {
+        matched++;
+        return { ...r, campaignId: hit };
+      }
+      unresolved++;
+      return r;
+    });
+    commit({ ...s, automation });
+    return { matched, unresolved, eligible };
+  },
+
+  retryScrape(ids: string[]) {
+    const wanted = new Set(ids);
+    const s = getState();
+    let count = 0;
+    const projects = s.projects.map((p) => {
+      let changed = false;
+      const rows = p.rows.map((r) => {
+        if (wanted.has(`ts:${p.id}:${r.id}`) && r.scrape !== "success") {
+          changed = true;
+          count++;
+          return { ...r, scrape: "success" as const };
+        }
+        return r;
+      });
+      return changed ? { ...p, rows, savedAt: nowIso() } : p;
+    });
+    const dataAds = s.dataAds.map((d) => {
+      let changed = false;
+      const sheets = d.sheets.map((sh) => {
+        const rows = sh.rows.map((r) => {
+          if (wanted.has(`tl:${d.id}:${sh.id}:${r.id}`) && r.scrape !== "success") {
+            changed = true;
+            count++;
+            return { ...r, scrape: "success" as const };
+          }
+          return r;
+        });
+        return { ...sh, rows };
+      });
+      return changed ? { ...d, sheets, savedAt: nowIso() } : d;
+    });
+    commit({ ...s, projects, dataAds });
+    return count;
+  },
+
+  deriveAutomationLink(value: string) {
+    return { cleanLink: cleanPublishLink(value), shortcode: extractShortcode(value) };
+  },
+};
