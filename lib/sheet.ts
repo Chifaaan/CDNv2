@@ -81,7 +81,7 @@ export function resolveColumns(kind: SheetKind, config?: ColumnConfig[]): Column
   const out: ColumnMeta[] = [];
   const seen = new Set<string>();
   for (const item of config) {
-    const meta = byKey.get(item.key);
+    const meta = byKey.get(item.key as ColumnMeta["key"]);
     if (!meta || seen.has(item.key)) continue;
     seen.add(item.key);
     out.push({ ...meta, required: Boolean(item.required) });

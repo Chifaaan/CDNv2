@@ -13,6 +13,7 @@ import {
   isRowComplete,
   isRowEmpty,
   missingRequired,
+  resolveColumns,
   sheetDedupeKey,
 } from "@/lib/sheet";
 import type { SheetRow } from "@/lib/types";
@@ -20,6 +21,7 @@ import { Icon } from "@/components/Icon";
 import { CopyButton, EmptyState, PageHero, SavedIndicator, StatusBadge } from "@/components/ui";
 import { SheetGrid, type SheetGridHandle } from "@/components/SheetGrid";
 import { ImportDialog } from "@/components/ImportDialog";
+import { ColumnSettingsModal } from "@/components/ColumnSettingsModal";
 import { toast } from "@/components/Toast";
 
 export default function ProjectSheetPage() {
@@ -31,6 +33,7 @@ export default function ProjectSheetPage() {
   const [selected, setSelected] = useState<SheetRow | null>(null);
   const [saving, setSaving] = useState(false);
   const [canUndo, setCanUndo] = useState(false);
+  const [columnsOpen, setColumnsOpen] = useState(false);
   const history = useRef<SheetRow[][]>([]);
   const gridRef = useRef<SheetGridHandle>(null);
 
@@ -55,7 +58,7 @@ export default function ProjectSheetPage() {
 
   const campaign = state.campaigns.find((c) => c.id === project.campaignId);
   const brand = state.brands.find((b) => b.id === project.brandId);
-  const columns = TS_COLUMNS;
+  const columns = useMemo(() => resolveColumns("TS", project.columns), [project.columns]);
 
   const dupSet = useMemo(() => {
     const seen = new Map<string, number>();
@@ -232,6 +235,10 @@ export default function ProjectSheetPage() {
             <Icon name="undo" size={13} />
             Undo
           </button>
+          <button className="btn" onClick={() => setColumnsOpen(true)} title="Reorder columns and set required fields">
+            <Icon name="list" size={13} />
+            Columns
+          </button>
           <button className="btn" onClick={pasteFromClipboard}>
             <Icon name="copy" size={13} />
             Paste block
@@ -333,6 +340,17 @@ export default function ProjectSheetPage() {
         title={`Import ${PROJECT_LABEL[project.type]} sheet`}
         templateName={`${PROJECT_SLUG[project.type]}-template.csv`}
         onImport={importRows}
+      />
+
+      <ColumnSettingsModal
+        open={columnsOpen}
+        onClose={() => setColumnsOpen(false)}
+        columns={columns}
+        kind="TS"
+        onSave={(config) => {
+          cdn.setProjectColumns(project.id, config);
+          toast("Column layout saved");
+        }}
       />
     </>
   );

@@ -88,85 +88,86 @@ export default function DataAdsPage() {
           </span>
         </div>
 
-        <SectionHead title="Spreadsheets" hint={`${containers.length} sheets`} />
+        <SectionHead title="Spreadsheets" hint={`${containers.length} spreadsheets`} />
 
-        <div className="grid gap-4 pb-4 lg:grid-cols-2">
-          {containers.map((d) => {
-            const dRows = d.sheets.flatMap((s) => s.rows);
-            const dLinked = dRows.filter((r) => r.shortcode).length;
-            return (
-              <div key={d.id} className="card flex flex-col p-5">
-                <div className="flex items-start gap-3">
-                  <span className="grid h-10 w-10 place-items-center rounded-xl border border-[var(--line)] bg-[#f7faff] text-[var(--blue-deep)]">
-                    <Icon name="table" size={17} />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <div className="truncate text-[14.5px] font-semibold tracking-[-0.02em]">{d.name}</div>
-                    </div>
-                    <div className="mt-0.5 text-[11px] text-[var(--muted)]">
-                      {d.sheets.length} sheets · {d.agency} · created {d.createdAt}
-                    </div>
-                  </div>
-                  <Link href={`/data-ads/${d.id}`} className="btn btn-sm">
-                    Open
-                    <Icon name="arrowRight" size={12} />
-                  </Link>
-                </div>
-
-                <div className="mt-4 flex flex-wrap gap-1.5">
-                  {d.sheets.map((s) => (
-                    <span key={s.id} className="chip !h-[24px] !px-2 !text-[9px]">
-                      {s.name}
-                      <span className="text-[var(--muted-2)]">{s.rows.length}</span>
-                    </span>
-                  ))}
-                </div>
-
-                <div className="mt-4 grid grid-cols-3 gap-2">
-                  <div className="rounded-lg border border-[var(--line)] bg-[#fafcff] px-3 py-2">
-                    <div className="eyebrow-dim !text-[8px]">Rows</div>
-                    <div className="mt-1 text-[15px] font-semibold">{fmtInt(dRows.length)}</div>
-                  </div>
-                  <div className="rounded-lg border border-[var(--line)] bg-[#fafcff] px-3 py-2">
-                    <div className="eyebrow-dim !text-[8px]">With link</div>
-                    <div className="mt-1 text-[15px] font-semibold">{dLinked}</div>
-                  </div>
-                  <div className="rounded-lg border border-[var(--line)] bg-[#fafcff] px-3 py-2">
-                    <div className="eyebrow-dim !text-[8px]">Sheets</div>
-                    <div className="mt-1 text-[15px] font-semibold">{d.sheets.length}</div>
-                  </div>
-                </div>
-
-                <div className="mt-3 flex items-center gap-2 border-t border-[var(--line)] pt-3 text-[10.5px] text-[var(--muted-2)]">
-                  <span className="flex items-center gap-1">
-                    <span className="h-1.5 w-1.5 rounded-full bg-[#12b76a]" /> Saved {relTime(d.savedAt)}
-                  </span>
-                  <button
-                    className="ml-auto flex items-center gap-1 text-[#b42318] hover:underline"
-                    onClick={() => setDeleteTarget(d.id)}
-                  >
-                    <Icon name="trash" size={11} /> Delete
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-
+        <div className="card overflow-hidden">
+          <div className="scroll-x">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th className="w-[260px]">Spreadsheet</th>
+                  <th>Campaign</th>
+                  <th>Agency</th>
+                  <th className="num">Sheets</th>
+                  <th className="num">Rows</th>
+                  <th className="num">With link</th>
+                  <th>Last saved</th>
+                  <th className="w-[130px]" />
+                </tr>
+              </thead>
+              <tbody>
+                {containers.map((d) => {
+                  const dRows = d.sheets.flatMap((s) => s.rows);
+                  const dLinked = dRows.filter((r) => r.shortcode).length;
+                  const campaign = state.campaigns.find((c) => c.id === d.campaignId);
+                  return (
+                    <tr key={d.id}>
+                      <td>
+                        <Link href={`/data-ads/${d.id}`} className="block truncate font-medium hover:underline">
+                          {d.name}
+                        </Link>
+                        <div className="mt-0.5 truncate text-[10px] text-[var(--muted-2)]">
+                          {d.sheets.map((s) => s.name).join(" · ")}
+                        </div>
+                      </td>
+                      <td className="max-w-[180px] truncate text-[var(--muted)]">{campaign?.name ?? "—"}</td>
+                      <td className="whitespace-nowrap text-[var(--muted)]">{d.agency}</td>
+                      <td className="num font-semibold">{d.sheets.length}</td>
+                      <td className="num">{fmtInt(dRows.length)}</td>
+                      <td className="num">{dLinked}</td>
+                      <td className="whitespace-nowrap text-[11px] text-[var(--muted-2)]">
+                        {new Date(d.savedAt).toLocaleDateString("en-US")}
+                      </td>
+                      <td>
+                        <div className="flex items-center justify-end gap-2">
+                          <Link href={`/data-ads/${d.id}`} className="text-[11px] font-medium text-[var(--blue-deep)] hover:underline">
+                            Open →
+                          </Link>
+                          <button
+                            className="icon-btn h-[26px] w-[26px] !text-[#b42318]"
+                            title="Delete Data Ads"
+                            onClick={() => setDeleteTarget(d.id)}
+                          >
+                            <Icon name="trash" size={12} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
           {containers.length === 0 && (
-            <div className="card lg:col-span-2">
-              <EmptyState
-                icon="table"
-                title="No Data Ads spreadsheet yet"
-                body="Create one, then add as many tracker-list sheets as the campaign needs."
-                action={
-                  <button className="btn btn-sm" onClick={() => setOpenNew(true)}>
-                    <Icon name="plus" size={12} /> New Data Ads
-                  </button>
-                }
-              />
-            </div>
+            <EmptyState
+              icon="table"
+              title="No Data Ads spreadsheet yet"
+              body="Create one, then add as many tracker-list sheets as the campaign needs."
+              action={
+                <button className="btn btn-sm" onClick={() => setOpenNew(true)}>
+                  <Icon name="plus" size={12} /> New Data Ads
+                </button>
+              }
+            />
           )}
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-[#cfe0ff] bg-[#f3f8ff] px-4 py-3 text-[11.5px] leading-5 text-[#2b4a7a]">
+          <Icon name="info" size={14} className="shrink-0" />
+          <span>
+            Every spreadsheet can hold many sheets. Column layout and required fields are set per sheet from the
+            spreadsheet view.
+          </span>
         </div>
       </div>
 

@@ -12,6 +12,7 @@ import {
   isRowComplete,
   isRowEmpty,
   missingRequired,
+  resolveColumns,
   sheetDedupeKey,
 } from "@/lib/sheet";
 import type { SheetRow } from "@/lib/types";
@@ -19,6 +20,7 @@ import { Icon } from "@/components/Icon";
 import { CopyButton, EmptyState, PageHero, SavedIndicator, StatusBadge } from "@/components/ui";
 import { SheetGrid, type SheetGridHandle } from "@/components/SheetGrid";
 import { ImportDialog } from "@/components/ImportDialog";
+import { ColumnSettingsModal } from "@/components/ColumnSettingsModal";
 import { toast } from "@/components/Toast";
 
 export default function DataAdsDetailPage() {
@@ -31,6 +33,7 @@ export default function DataAdsDetailPage() {
   const [selected, setSelected] = useState<SheetRow | null>(null);
   const [saving, setSaving] = useState(false);
   const [canUndo, setCanUndo] = useState(false);
+  const [columnsOpen, setColumnsOpen] = useState(false);
   const history = useRef<SheetRow[][]>([]);
   const [renaming, setRenaming] = useState<{ id: string; value: string } | null>(null);
   const gridRef = useRef<SheetGridHandle>(null);
@@ -58,7 +61,7 @@ export default function DataAdsDetailPage() {
   const brand = state.brands.find((b) => b.id === dataAds.brandId);
   const sheet = dataAds.sheets.find((s) => s.id === activeId) ?? dataAds.sheets[0];
   const rows = sheet?.rows ?? [];
-  const columns = TL_COLUMNS;
+  const columns = useMemo(() => resolveColumns("TL", sheet?.columns), [sheet?.columns]);
 
   const dupSet = useMemo(() => {
     const seen = new Map<string, number>();
@@ -312,6 +315,10 @@ export default function DataAdsDetailPage() {
             <Icon name="undo" size={13} />
             Undo
           </button>
+          <button className="btn" onClick={() => setColumnsOpen(true)} title="Reorder columns and set required fields">
+            <Icon name="list" size={13} />
+            Columns
+          </button>
           <button className="btn" onClick={pasteFromClipboard}>
             <Icon name="copy" size={13} />
             Paste block
@@ -402,11 +409,24 @@ export default function DataAdsDetailPage() {
       <ImportDialog
         open={importOpen}
         onClose={() => setImportOpen(false)}
-        columns={TL_COLUMNS.map((c) => ({ key: c.key, label: c.label, required: c.required }))}
+        columns={columns.map((c) => ({ key: c.key, label: c.label, required: c.required }))}
         title={`Import into ${sheet?.name ?? "sheet"}`}
         templateName="data-ads-template.csv"
         onImport={importRows}
       />
+
+      {sheet && (
+        <ColumnSettingsModal
+          open={columnsOpen}
+          onClose={() => setColumnsOpen(false)}
+          columns={columns}
+          kind="TL"
+          onSave={(config) => {
+            cdn.setDataAdsColumns(dataAds.id, sheet.id, config);
+            toast("Column layout saved");
+          }}
+        />
+      )}
     </>
   );
 }

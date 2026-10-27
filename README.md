@@ -17,10 +17,10 @@ Production check: `npm run build && npm start`.
 | --- | --- | --- |
 | Brand chooser | `/` | Entry point |
 | Dashboard | `/dashboard` | Aggregates the selected campaigns (or an opened group); effort sub-views at `/dashboard/kol`, `/dashboard/connector`, `/dashboard/attend`, `/dashboard/ads` |
-| Campaign list | `/campaigns` | Card grid; click cards to multi-select, open the project list, or group the selection. Edit/delete per campaign |
+| Campaign list | `/campaigns` | Card grid; grouped campaigns appear as **Group Campaign** cards. Click cards to multi-select, open the project list, or group the selection. Edit/delete per card |
 | Project list | `/projects/all` | Sheets for the selected campaigns; type filter inside the page |
-| Project sheet | `/projects/ts/[id]` | Excel-style tracker sheet (10 columns), Save + last-saved indicator, undo, row delete |
-| Data Ads | `/data-ads`, `/data-ads/[id]` | Each spreadsheet holds many sheets; every sheet is a tracker-list grid |
+| Project sheet | `/projects/ts/[id]` | Excel-style tracker sheet (10 columns), Save + last-saved indicator, undo, row delete, column layout |
+| Data Ads | `/data-ads`, `/data-ads/[id]` | Table of spreadsheets; each spreadsheet holds many sheets and every sheet is a tracker-list grid with its own column layout |
 | Automation link | `/automation` | Brand-level automation export as an editable spreadsheet |
 | Scraping monitoring | `/scraping` | Link-level success / failed / pending log |
 | Agency workspace | `/agency` | Role-switched view (header: Spektrum ↔ Agency) |
@@ -41,8 +41,9 @@ Production check: `npm run build && npm start`.
 
 - **Multi-campaign scope.** Campaign cards toggle a selection (one or many). The selection drives the dashboard, Project list and Data Ads. The topbar shows the selection or the opened group.
 - **New project needs one campaign.** Creating a project sheet requires exactly one selected campaign; the brand and campaign are shown as fixed badges.
-- **Grouping.** Select two or more campaigns and use `Group selected` (popup). Opening a group sets the scope to its members and opens the dashboard. Groups are also created/edited from the grouping section.
+- **Grouping.** Select two or more campaigns and use `Group selected` (popup). A campaign can belong to **one group only**; grouped campaigns disappear from the campaign grid and are represented by their **Group Campaign** card (open dashboard / open project list / edit / delete). Deleting a group returns its members as individual cards.
 - **No campaign type or status in the UI.** Type is an internal effort profile used for seeded metrics; campaigns are simply listed.
+- **Per-sheet column layout.** `Columns` in a sheet toolbar opens a layout editor: reorder columns and toggle required/optional per column. The layout is saved per sheet (project sheet or Data Ads sheet), drives the green/blue headers, completeness validation and the import mapping. `Reset to default` restores the standard layout.
 - **No workflow status on sheets.** Every edit auto-saves; the header shows `Saved just now / 2 min ago`, and `Save` forces a save.
 - **Delete campaign** removes its project sheets and Data Ads containers, removes it from groups, and unlinks its automation rows — the confirmation lists the impact first.
 - **Excel behaviour.**

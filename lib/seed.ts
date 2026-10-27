@@ -16,7 +16,7 @@ import { cleanPublishLink } from "./shortcode";
 import { slugify } from "./utils";
 
 export const STORAGE_KEY = "cdn-v2.state.v1";
-export const STATE_VERSION = 11;
+export const STATE_VERSION = 13;
 
 const BASE = new Date("2026-10-27T09:00:00.000Z");
 
@@ -435,10 +435,14 @@ function buildGroups(campaigns: Campaign[]): CampaignGroup[] {
   const names = ["Q3 Always On", "Ramadan 2026", "Payday Cluster", "Launch Wave"];
 
   for (const [brandId, list] of byBrand) {
-    if (list.length < 2) continue;
+    const pool = list.slice(1);
+    if (pool.length < 2) continue;
     const count = brandId === "zentara" ? 2 : 1;
+    let cursor = 0;
     for (let i = 0; i < count; i++) {
-      const members = list.slice(i, i + (brandId === "zentara" && i === 0 ? 3 : 2));
+      const size = i === 0 ? 3 : 2;
+      const members = pool.slice(cursor, cursor + size);
+      cursor += size;
       if (members.length < 2) continue;
       groups.push({
         id: `grp_${brandId}_${i}`,

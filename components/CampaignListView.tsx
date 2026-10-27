@@ -3,11 +3,10 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { cdn, useCdn } from "@/lib/store";
-import { fmtCompact, pct } from "@/lib/utils";
 import { PROJECT_LABEL, brandStyle } from "@/lib/seed";
 import type { Campaign, ProjectType } from "@/lib/types";
 import { Icon } from "@/components/Icon";
-import { EmptyState, Field, Modal, PageHero, SectionHead, Select } from "@/components/ui";
+import { EmptyState, Field, Modal, PageHero, Select } from "@/components/ui";
 import { toast } from "@/components/Toast";
 
 const PROJECT_ORDER: ProjectType[] = ["KOL", "CONNECTOR", "KOL_ADS", "TROOPS"];
@@ -49,6 +48,22 @@ export function CampaignListView() {
   const activeGroup = state.ui.groupId ? state.groups.find((g) => g.id === state.ui.groupId) : null;
 
   const selectedCampaigns = brandCampaigns.filter((c) => selected.includes(c.id));
+  const groupedIds = new Set(groups.flatMap((g) => g.campaignIds));
+  const entries = [
+    ...groups
+      .filter((g) => {
+        const q = query.trim().toLowerCase();
+        if (!q) return true;
+        return (
+          g.name.toLowerCase().includes(q) ||
+          state.campaigns.some((c) => g.campaignIds.includes(c.id) && c.name.toLowerCase().includes(q))
+        );
+      })
+      .map((g) => ({ kind: "group" as const, name: g.name, group: g })),
+    ...campaigns
+      .filter((c) => !groupedIds.has(c.id))
+      .map((c) => ({ kind: "campaign" as const, name: c.name, campaign: c })),
+  ].sort((a, b) => a.name.localeCompare(b.name));
 
   function counts(campaign: Campaign) {
     return {
@@ -93,7 +108,8 @@ export function CampaignListView() {
         sub={
           <>
             Semua campaign <b className="font-semibold text-[var(--ink-2)]">{brand.name}</b>. Klik kartu untuk memilih;
-            pilihan bisa lebih dari satu dan langsung dipakai sebagai filter Project list dan Data Ads.
+            pilihan bisa lebih dari satu dan langsung dipakai sebagai filter Project list dan Data Ads. Campaign yang
+            sudah digroup tampil sebagai kartu <b className="font-semibold text-[var(--ink-2)]">Group Campaign</b>.
           </>
         }
         actions={
@@ -171,10 +187,138 @@ export function CampaignListView() {
         </div>
 
         <div className="grid gap-4 pb-4 md:grid-cols-2 xl:grid-cols-3">
-          {campaigns.map((c) => {
+          {entries.map((entry) => {
+            const s = brandStyle(brand?.hue ?? 210);
+
+            if (entry.kind === "group") {
+              const g = entry.group;
+              const members = state.campaigns.filter((c) => g.campaignIds.includes(c.id));
+              const on = members.length > 0 && members.every((m) => selected.includes(m.id));
+              const projects = state.projects.filter((p) => g.campaignIds.includes(p.campaignId)).length;
+              const dataAds = state.dataAds.filter((d) => g.campaignIds.includes(d.campaignId)).length;
+              const dashboardScope = activeGroup?.id === g.id;
+              return (
+                <div
+                  key={g.id}
+                  onClick={() => {
+                    const all = members.every((m) => selected.includes(m.id));
+                    if (all) cdn.setCampaignSelection(selected.filter((id) => !g.campaignIds.includes(id)));
+                    else cdn.setCampaignSelection([...new Set([...selected, ...g.campaignIds])]);
+                  }}
+                  className={`card group flex cursor-pointer flex-col p-5 transition-all duration-200 ${
+                    on ? "ring-2 ring-[#9cc3ff]" : "hover:-translate-y-[2px]"
+                  }`}
+                  role="button"
+                  aria-pressed={on}
+                >
+                  <div className="flex items-start gap-3">
+                    <span
+                      className="brand-avatar"
+                      style={{
+                        width: 44,
+                        height: 44,
+                        background: s.bg,
+                        color: s.fg,
+                        boxShadow: `0 0 0 1px ${s.ring} inset`,
+                        borderRadius: 14,
+                        fontSize: 14,
+                      }}
+                    >
+                      <Icon name="group" size={18} />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="badge badge-blue !h-[18px] !text-[8.5px]">group campaign</span>
+                        {dashboardScope && <span className="badge badge-neutral !h-[18px] !text-[8.5px]">dashboard scope</span>}
+                      </div>
+                      <div className="mt-1 truncate text-[15.5px] font-semibold tracking-[-0.02em]">{g.name}</div>
+                      <div className="mt-0.5 truncate text-[11.5px] text-[var(--muted)]">
+                        {members.length} campaigns · {new Set(members.map((m) => m.agency)).size} agencies
+                      </div>
+                    </div>
+                    <span
+                      className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border transition ${
+                        on ? "border-[#2f6bff] bg-[#2f6bff] text-white" : "border-[var(--line-3)] bg-white text-transparent"
+                      }`}
+                      title={on ? "Selected" : "Select all group campaigns"}
+                    >
+                      <Icon name="check" size={12} />
+                    </span>
+                  </div>
+
+                  <div className="mt-3 flex min-h-[26px] flex-wrap gap-1.5">
+                    {members.map((m) => (
+                      <span key={m.id} className="chip !h-[24px] !gap-1.5 !px-2 !text-[8.5px]">
+                        <span className="dot bg-[#2f6bff]" />
+                        {m.name}
+                      </span>
+                    ))}
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-3 gap-2 border-t border-[var(--line)] pt-3 text-[10.5px] text-[var(--muted-2)]">
+                    <span className="flex items-center gap-1.5">
+                      <Icon name="projects" size={12} /> {projects} sheet{projects === 1 ? "" : "s"}
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <Icon name="table" size={12} /> {dataAds} Data Ads
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <Icon name="group" size={12} /> {members.length} campaigns
+                    </span>
+                  </div>
+
+                  <div className="mt-auto flex items-center gap-2 pt-4">
+                    <button
+                      className="btn btn-primary flex-1 !justify-between"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openGroup(g.id);
+                      }}
+                    >
+                      <span>Open dashboard</span>
+                      <Icon name="arrowRight" size={13} />
+                    </button>
+                    <button
+                      className="icon-btn"
+                      title="Open project list"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openProjects(g.campaignIds);
+                      }}
+                    >
+                      <Icon name="projects" size={13} />
+                    </button>
+                    <button
+                      className="icon-btn"
+                      title="Edit group"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setGroupEditId(g.id);
+                        setGroupSeed([]);
+                        setGroupOpen(true);
+                      }}
+                    >
+                      <Icon name="edit" size={13} />
+                    </button>
+                    <button
+                      className="icon-btn !text-[#b42318]"
+                      title="Delete group"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        cdn.deleteGroup(g.id);
+                        toast("Campaign group deleted · members are back in the list");
+                      }}
+                    >
+                      <Icon name="trash" size={13} />
+                    </button>
+                  </div>
+                </div>
+              );
+            }
+
+            const c = entry.campaign;
             const info = counts(c);
             const on = selected.includes(c.id);
-            const s = brandStyle(brand?.hue ?? 210);
             return (
               <div
                 key={c.id}
@@ -287,7 +431,7 @@ export function CampaignListView() {
           </div>
         </div>
 
-        {campaigns.length === 0 && (
+        {entries.length === 0 && (
           <div className="card">
             <EmptyState
               icon="list"
@@ -301,111 +445,6 @@ export function CampaignListView() {
             />
           </div>
         )}
-
-        <SectionHead
-          className="mt-6"
-          title="Campaign grouping"
-          hint={`${groups.length} group${groups.length === 1 ? "" : "s"} · dashboard roll-up`}
-          right={
-            <button
-              className="btn btn-sm"
-              onClick={() => {
-                setGroupEditId(null);
-                setGroupSeed(selectedCampaigns.length >= 2 ? selected : []);
-                setGroupOpen(true);
-              }}
-            >
-              <Icon name="plus" size={12} />
-              New group
-            </button>
-          }
-        />
-
-        <div className="grid gap-4 pb-4 lg:grid-cols-2">
-          {groups.map((g) => {
-            const members = state.campaigns.filter((c) => g.campaignIds.includes(c.id));
-            const organic = members.reduce((a, c) => a + c.metrics.organic, 0);
-            const engagement = members.reduce((a, c) => a + c.metrics.engagement, 0);
-            const on = activeGroup?.id === g.id;
-            return (
-              <div key={g.id} className={`card p-5 ${on ? "ring-1 ring-[#b9d3ff]" : ""}`}>
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[15px] font-semibold tracking-[-0.02em]">{g.name}</span>
-                      {on && <span className="badge badge-blue">dashboard scope</span>}
-                    </div>
-                    <p className="mt-1 max-w-[360px] text-[11.5px] leading-5 text-[var(--muted)]">{g.description}</p>
-                  </div>
-                  <span className="badge badge-neutral">
-                    {members.length} campaign{members.length === 1 ? "" : "s"}
-                  </span>
-                </div>
-
-                <div className="mt-4 grid grid-cols-3 gap-2 rounded-xl border border-[var(--line)] bg-[#fafcff] p-3">
-                  <div>
-                    <div className="eyebrow-dim !text-[8.5px]">Organic</div>
-                    <div className="metric-sm mt-1">{fmtCompact(organic)}</div>
-                  </div>
-                  <div>
-                    <div className="eyebrow-dim !text-[8.5px]">Engagement</div>
-                    <div className="metric-sm mt-1">{fmtCompact(engagement)}</div>
-                  </div>
-                  <div>
-                    <div className="eyebrow-dim !text-[8.5px]">Avg ER</div>
-                    <div className="metric-sm mt-1">{pct(organic ? engagement / organic : 0)}</div>
-                  </div>
-                </div>
-
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  {members.map((m) => (
-                    <span key={m.id} className="chip !h-[24px] !px-2 !text-[9px]">
-                      <span className="dot bg-[#2f6bff]" />
-                      {m.name}
-                    </span>
-                  ))}
-                </div>
-
-                <div className="mt-4 flex items-center gap-2">
-                  <button className="btn btn-primary flex-1 !justify-between" onClick={() => openGroup(g.id)}>
-                    <span>Open dashboard</span>
-                    <Icon name="arrowRight" size={13} />
-                  </button>
-                  <button
-                    className="btn btn-ghost"
-                    onClick={() => {
-                      setGroupEditId(g.id);
-                      setGroupSeed([]);
-                      setGroupOpen(true);
-                    }}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    className="icon-btn h-[33px] w-[33px] !text-[#b42318]"
-                    title="Delete group"
-                    onClick={() => {
-                      cdn.deleteGroup(g.id);
-                      toast("Campaign group deleted");
-                    }}
-                  >
-                    <Icon name="trash" size={13} />
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-
-          {groups.length === 0 && (
-            <div className="card lg:col-span-2">
-              <EmptyState
-                icon="group"
-                title="No campaign group yet"
-                body="Select two or more campaigns, then use Group selected to read them together on one dashboard."
-              />
-            </div>
-          )}
-        </div>
       </div>
 
       <CampaignFormModal key="new-campaign" open={newOpen} onClose={() => setNewOpen(false)} />
@@ -574,104 +613,6 @@ function DeleteCampaignModal({
           <li>· membership in {impact.groups} campaign group(s)</li>
           <li>· {impact.automation} automation row(s) will be unlinked (data kept)</li>
         </ul>
-      </div>
-    </Modal>
-  );
-}
-
-function GroupFormModal({
-  open,
-  onClose,
-  groupId,
-  seed,
-  onCreated,
-}: {
-  open: boolean;
-  onClose: () => void;
-  groupId: string | null;
-  seed: string[];
-  onCreated?: () => void;
-}) {
-  const state = useCdn();
-  const brandId = state.ui.brandId;
-  const group = groupId ? state.groups.find((g) => g.id === groupId) : undefined;
-  const campaigns = state.campaigns.filter((c) => c.brandId === brandId);
-  const [name, setName] = useState(group?.name ?? "");
-  const [desc, setDesc] = useState(group?.description ?? "");
-  const [picked, setPicked] = useState<string[]>(group?.campaignIds ?? seed);
-
-  function submit() {
-    if (!name.trim() || picked.length < 2) {
-      toast("Name and at least two campaigns are required", "err");
-      return;
-    }
-    if (group) {
-      cdn.updateGroup(group.id, { name: name.trim(), description: desc.trim() || "Custom dashboard group.", campaignIds: picked });
-      toast(`Group updated · ${picked.length} campaigns`);
-    } else {
-      cdn.addGroup({
-        brandId,
-        name: name.trim(),
-        description: desc.trim() || "Custom dashboard group.",
-        campaignIds: picked,
-      });
-      onCreated?.();
-    }
-    onClose();
-  }
-
-  return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      eyebrow="Dashboard scope"
-      title={group ? "Edit campaign group" : "New campaign group"}
-      subtitle="A group combines the data of the selected campaigns into one dashboard."
-      footer={
-        <>
-          <button className="btn btn-ghost" onClick={onClose}>
-            Cancel
-          </button>
-          <button className="btn btn-dark" onClick={submit}>
-            {group ? "Save group" : "Create group"}
-          </button>
-        </>
-      }
-    >
-      <div className="grid gap-4">
-        <Field label="Group name">
-          <input className="field w-full" autoFocus value={name} placeholder="e.g. Q4 Payday cluster" onChange={(e) => setName(e.target.value)} />
-        </Field>
-        <Field label="Description">
-          <input className="field w-full" value={desc} placeholder="Short note for the team" onChange={(e) => setDesc(e.target.value)} />
-        </Field>
-        <div>
-          <div className="eyebrow-dim mb-2">Campaigns · {picked.length} selected</div>
-          <div className="max-h-[240px] overflow-y-auto rounded-xl border border-[var(--line)]">
-            {campaigns.map((c) => {
-              const on = picked.includes(c.id);
-              return (
-                <label
-                  key={c.id}
-                  className={`flex cursor-pointer items-center gap-2.5 border-b border-[var(--line)] px-3 py-2.5 text-[12px] last:border-0 ${
-                    on ? "bg-[#f3f8ff]" : ""
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={on}
-                    onChange={() => setPicked((p) => (on ? p.filter((id) => id !== c.id) : [...p, c.id]))}
-                    className="accent-[var(--blue)]"
-                  />
-                  <span className="min-w-0 flex-1 truncate">{c.name}</span>
-                  <span className="shrink-0 text-[9.5px] uppercase tracking-[0.06em] text-[var(--muted-2)]">
-                    {c.agency}
-                  </span>
-                </label>
-              );
-            })}
-          </div>
-        </div>
       </div>
     </Modal>
   );
