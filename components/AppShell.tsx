@@ -2,17 +2,19 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { cdn, useCdn } from "@/lib/store";
 import { relTime } from "@/lib/utils";
 import { brandStyle } from "@/lib/seed";
 import { Icon, type IconName } from "./Icon";
+import { GroupFormModal } from "./GroupFormModal";
 import { toast } from "./Toast";
 
 type NavEntry = { href: string; label: string; icon: IconName; count?: number };
 
 const titleFor = (path: string): string => {
   if (path === "/dashboard" || path.startsWith("/dashboard/")) return "Dashboard";
+  if (path.startsWith("/campaigns/groups")) return "Campaign group";
   if (path.startsWith("/campaigns")) return "Campaign list";
   if (path.startsWith("/projects/ts/")) return "Project sheet";
   if (path.startsWith("/projects")) return "Project list";
@@ -27,7 +29,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const state = useCdn();
   const pathname = usePathname();
   const router = useRouter();
-  const { role, brandId, sidebarCollapsed } = state.ui;
+  const [role, brandId, sidebarCollapsed] = [state.ui.role, state.ui.brandId, state.ui.sidebarCollapsed];
+  const [dashOpen, setDashOpen] = useState(true);
+  const [groupOpen, setGroupOpen] = useState(false);
   const brand = state.brands.find((b) => b.id === brandId) ?? state.brands[0];
   const brandStyleValue = brandStyle(brand?.hue ?? 210);
 
@@ -132,13 +136,49 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </>
           ) : (
             <>
-              {navItem({ href: "/dashboard", label: "Dashboard", icon: "dashboard" })}
+              <div className={`nav-item ${pathname === "/dashboard" ? "is-active" : ""} !pr-1`}>
+                <Link href="/dashboard" className="flex min-w-0 flex-1 items-center gap-2.5">
+                  <Icon name="dashboard" size={15} />
+                  <span className="truncate">Dashboard</span>
+                </Link>
+                <button
+                  className="nav-caret grid h-6 w-6 shrink-0 place-items-center rounded-md text-[var(--muted-2)] hover:bg-white/70"
+                  onClick={() => setDashOpen((v) => !v)}
+                  aria-label="Toggle performance menu"
+                  title={dashOpen ? "Collapse performance" : "Expand performance"}
+                >
+                  <Icon
+                    name="chevronDown"
+                    size={12}
+                    className={`transition-transform ${dashOpen ? "rotate-180" : ""}`}
+                  />
+                </button>
+              </div>
 
-              <div className="nav-section">Performance</div>
-              {perf.map((n) => navItem(n, true))}
+              {dashOpen && !sidebarCollapsed && (
+                <div className="nav-tree">
+                  {perf.map((n) => (
+                    <Link
+                      key={n.href}
+                      href={n.href}
+                      className={`nav-item ${pathname === n.href ? "is-active" : ""}`}
+                    >
+                      <span className="truncate">{n.label}</span>
+                    </Link>
+                  ))}
+                </div>
+              )}
 
               <div className="nav-section">Campaign</div>
               {navItem({ href: "/campaigns", label: "Campaign list", icon: "list" })}
+              <button
+                className="nav-item w-full"
+                onClick={() => setGroupOpen(true)}
+                title={sidebarCollapsed ? "Campaign group" : "Create a campaign group"}
+              >
+                <Icon name="group" size={15} />
+                <span className="truncate">Campaign group</span>
+              </button>
 
               <div className="nav-section">Project list</div>
               {navItem({ href: "/projects/all", label: "All projects", icon: "projects", count: counts.projects })}
@@ -259,6 +299,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         <main className="min-w-0 flex-1 pb-14">{children}</main>
       </div>
+
+      <GroupFormModal
+        key={`sidebar-group-${groupOpen}`}
+        open={groupOpen}
+        onClose={() => setGroupOpen(false)}
+        groupId={null}
+        seed={state.ui.campaignIds.length >= 2 ? state.ui.campaignIds : []}
+        onCreated={() => {
+          toast("Group created · campaign group card is now on the campaign list");
+          router.push("/campaigns");
+        }}
+      />
     </div>
   );
 }

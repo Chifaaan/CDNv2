@@ -274,6 +274,27 @@ textarea {
   color: #4d5765;
 }
 
+.nav-tree {
+  margin: 1px 0 6px 17px;
+  padding-left: 11px;
+  border-left: 1px solid var(--line-2);
+}
+
+.nav-tree .nav-item {
+  height: 30px;
+  padding: 0 8px;
+  margin-bottom: 1px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #4d5765;
+}
+
+.nav-tree .nav-item.is-active {
+  background: var(--blue-pill);
+  color: var(--blue-deep);
+  font-weight: 600;
+}
+
 .nav-item.is-sub.is-active {
   color: var(--blue-deep);
 }

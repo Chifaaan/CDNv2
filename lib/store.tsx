@@ -228,10 +228,17 @@ export const cdn = {
 
   deleteGroup(id: string) {
     const s = getState();
+    const group = s.groups.find((g) => g.id === id);
+    const firstMember = group?.campaignIds[0];
     commit({
       ...s,
       groups: s.groups.filter((g) => g.id !== id),
-      ui: { ...s.ui, groupId: s.ui.groupId === id ? null : s.ui.groupId },
+      ui: {
+        ...s.ui,
+        groupId: s.ui.groupId === id ? null : s.ui.groupId,
+        campaignIds:
+          s.ui.groupId === id && firstMember ? [firstMember] : s.ui.campaignIds,
+      },
     });
   },
 

@@ -7,6 +7,7 @@ import { PROJECT_LABEL, brandStyle } from "@/lib/seed";
 import type { Campaign, ProjectType } from "@/lib/types";
 import { Icon } from "@/components/Icon";
 import { EmptyState, Field, Modal, PageHero, Select } from "@/components/ui";
+import { GroupFormModal } from "@/components/GroupFormModal";
 import { toast } from "@/components/Toast";
 
 const PROJECT_ORDER: ProjectType[] = ["KOL", "CONNECTOR", "KOL_ADS", "TROOPS"];

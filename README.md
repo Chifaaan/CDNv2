@@ -16,7 +16,7 @@ Production check: `npm run build && npm start`.
 | Area | Route | Notes |
 | --- | --- | --- |
 | Brand chooser | `/` | Entry point |
-| Dashboard | `/dashboard` | Aggregates the selected campaigns (or an opened group); effort sub-views at `/dashboard/kol`, `/dashboard/connector`, `/dashboard/attend`, `/dashboard/ads` |
+| Dashboard | `/dashboard` | Root of the performance tree; aggregates the selected campaigns (or an opened group). Sub-views at `/dashboard/kol`, `/dashboard/connector`, `/dashboard/attend`, `/dashboard/ads` |
 | Campaign list | `/campaigns` | Card grid; grouped campaigns appear as **Group Campaign** cards. Click cards to multi-select, open the project list, or group the selection. Edit/delete per card |
 | Project list | `/projects/all` | Sheets for the selected campaigns; type filter inside the page |
 | Project sheet | `/projects/ts/[id]` | Excel-style tracker sheet (10 columns), Save + last-saved indicator, undo, row delete, column layout |
@@ -40,8 +40,9 @@ Production check: `npm run build && npm start`.
 ## Rules baked into the prototype
 
 - **Multi-campaign scope.** Campaign cards toggle a selection (one or many). The selection drives the dashboard, Project list and Data Ads. The topbar shows the selection or the opened group.
+- **Sidebar tree.** Dashboard is the root of a collapsible tree containing the four performance views; there is no separate "Performance" section label.
 - **New project needs one campaign.** Creating a project sheet requires exactly one selected campaign; the brand and campaign are shown as fixed badges.
-- **Grouping.** Select two or more campaigns and use `Group selected` (popup). A campaign can belong to **one group only**; grouped campaigns disappear from the campaign grid and are represented by their **Group Campaign** card (open dashboard / open project list / edit / delete). Deleting a group returns its members as individual cards.
+- **Grouping.** `Campaign group` in the sidebar opens the grouping dialog directly (no separate page) and is prefilled with the current selection. You can also use `Group selected` on the campaign page. A campaign can belong to **one group only**; grouped campaigns disappear from the campaign grid and are represented by their **Group Campaign** card (open dashboard / open project list / edit / delete). Deleting or editing a group down to fewer than two campaigns **dissolves** it and returns the members to the campaign list.
 - **No campaign type or status in the UI.** Type is an internal effort profile used for seeded metrics; campaigns are simply listed.
 - **Per-sheet column layout.** `Columns` in a sheet toolbar opens a layout editor: reorder columns and toggle required/optional per column. The layout is saved per sheet (project sheet or Data Ads sheet), drives the green/blue headers, completeness validation and the import mapping. `Reset to default` restores the standard layout.
 - **No workflow status on sheets.** Every edit auto-saves; the header shows `Saved just now / 2 min ago`, and `Save` forces a save.
