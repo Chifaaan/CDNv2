@@ -16,7 +16,7 @@ import { cleanPublishLink } from "./shortcode";
 import { slugify } from "./utils";
 
 export const STORAGE_KEY = "cdn-v2.state.v1";
-export const STATE_VERSION = 13;
+export const STATE_VERSION = 16;
 
 const BASE = new Date("2026-10-27T09:00:00.000Z");
 
@@ -88,7 +88,6 @@ const VENDORS = [
   "KOL_12_Rafi_Troops_60s",
   "KOL_3_Dewi_Beauty_80s",
 ];
-const OA_CONTENTS = ["OA_Content1", "OA_Content2", "OA_Content3"];
 
 const THEMES = [
   "Ramadan Glow",
@@ -265,9 +264,22 @@ function emptyRow(id: string): SheetRow {
     proofLink: "",
     insightsLink: "",
     sixSecondViews: "",
+    notes: "",
+    postingDate: "",
+    adName: "",
+    byDay: "",
+    impressions: "",
+    reach: "",
+    clicks: "",
+    videoViews: "",
+    secondViews: "",
+    sixthViews: "",
+    at25: "",
+    at50: "",
+    at75: "",
+    at100: "",
     startDate: "",
     endDate: "",
-    oaContent: "",
     creativeName: "",
     kolCategory: "",
     vendor: "",
@@ -284,28 +296,71 @@ function emptyRow(id: string): SheetRow {
   };
 }
 
-function tsRow(prefix: string, idx: number): SheetRow {
+function tsRow(prefix: string, idx: number, type: ProjectType): SheetRow {
   const handle = pick(HANDLES);
   const useTikTok = rnd() > 0.5;
   const code = useTikTok ? ttCode() : igCode();
   const link = useTikTok ? ttLink(handle, code) : igLink(code);
   const base = emptyRow(`${prefix}_r${idx}`);
-  return {
+  const common = {
     ...base,
+    publishLink: link,
+    cleanLink: cleanPublishLink(link),
+    shortcode: code,
+    scrape: rnd() > 0.9 ? (rnd() > 0.6 ? "failed" : "pending") : "success",
+  } as SheetRow;
+
+  if (type === "KOL_ADS") {
+    const impressions = int(9_000, 450_000);
+    return {
+      ...common,
+      adName: `KOL_${int(1, 12)}_${pick(["Zara", "Nadia", "Rafi", "Dewi"])}_${int(60, 150)}s_Brand@${int(5, 20)}s`,
+      byDay: iso(int(1, 40)),
+      impressions: String(impressions),
+      reach: String(Math.round(impressions * (0.45 + rnd() * 0.35))),
+      clicks: String(Math.round(impressions * (0.004 + rnd() * 0.01))),
+      videoViews: String(Math.round(impressions * (0.45 + rnd() * 0.4))),
+      secondViews: String(Math.round(impressions * (0.3 + rnd() * 0.35))),
+      sixthViews: String(Math.round(impressions * (0.12 + rnd() * 0.2))),
+      at25: String(Math.round(impressions * (0.2 + rnd() * 0.3))),
+      at50: String(Math.round(impressions * (0.05 + rnd() * 0.2))),
+      at75: String(Math.round(impressions * (0.02 + rnd() * 0.1))),
+      at100: String(Math.round(impressions * (0.005 + rnd() * 0.05))),
+    };
+  }
+
+  if (type === "TROOPS") {
+    return {
+      ...common,
+      name: handle,
+      linkAccount: useTikTok ? `https://www.tiktok.com/@${handle}` : `https://www.instagram.com/${handle}`,
+      postingDate: iso(int(10, 80)),
+    };
+  }
+
+  const row: SheetRow = {
+    ...common,
     name: handle,
     linkAccount: useTikTok ? `https://www.tiktok.com/@${handle}` : `https://www.instagram.com/${handle}`,
     followers: `${int(8, 2500)}.${pad(int(0, 999), 3)}`,
-    publishLink: link,
     niche: pick(NICHES),
     sowItem: pick(SOW_ITEMS),
     actualPublishDate: iso(int(10, 80)),
     proofLink: driveLink(),
     insightsLink: driveLink(),
     sixSecondViews: `${int(12, 62)}%`,
-    cleanLink: cleanPublishLink(link),
-    shortcode: code,
-    scrape: rnd() > 0.9 ? (rnd() > 0.6 ? "failed" : "pending") : "success",
   };
+
+  if (type === "CONNECTOR") {
+    row.notes = pick([
+      "Posted on feed + story",
+      "Waiting for creator revision",
+      "Approved by brand",
+      "Caption updated after review",
+    ]);
+  }
+
+  return row;
 }
 
 function tlRow(prefix: string, idx: number, brandName: string): SheetRow {
@@ -319,7 +374,6 @@ function tlRow(prefix: string, idx: number, brandName: string): SheetRow {
     ...base,
     startDate: iso(int(2, 40)),
     endDate: iso(int(1, 12)),
-    oaContent: pick(OA_CONTENTS),
     creativeName: creative,
     kolCategory: pick(KOL_CATEGORIES),
     vendor: pick(VENDORS),
@@ -349,10 +403,10 @@ function makeProject(
     campaignId: campaign.id,
     type,
     agency: campaign.agency,
-    pmLink: `https://cdn.spektrum.id/pm/${slugify(campaign.name)}-${PROJECT_SLUG[type]}-${id.slice(-3)}${int(10, 99)}`,
+    pmLink: `https://cdn.spectrum.id/pm/${slugify(campaign.name)}-${PROJECT_SLUG[type]}-${id.slice(-3)}${int(10, 99)}`,
     createdAt: iso(int(5, 40)),
     savedAt: isoTime(int(1, 72)),
-    rows: Array.from({ length: rowCount }, (_, r) => tsRow(id, r)),
+    rows: Array.from({ length: rowCount }, (_, r) => tsRow(id, r, type)),
   };
 }
 
@@ -541,7 +595,7 @@ export function createSeed(): State {
     dataAds,
     automation,
     ui: {
-      role: "spektrum",
+      role: "spectrum",
       brandId: "zentara",
       campaignIds: ["cmp_zentara_0"],
       groupId: null,

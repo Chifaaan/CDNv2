@@ -61,7 +61,7 @@ export default function DataAdsDetailPage() {
   const brand = state.brands.find((b) => b.id === dataAds.brandId);
   const sheet = dataAds.sheets.find((s) => s.id === activeId) ?? dataAds.sheets[0];
   const rows = sheet?.rows ?? [];
-  const columns = useMemo(() => resolveColumns("TL", sheet?.columns), [sheet?.columns]);
+  const columns = useMemo(() => resolveColumns(TL_COLUMNS, sheet?.columns), [sheet?.columns]);
 
   const dupSet = useMemo(() => {
     const seen = new Map<string, number>();
@@ -155,7 +155,7 @@ export default function DataAdsDetailPage() {
       `data-ads-${dataAds!.id}-${sheet?.name ?? "sheet"}.csv`.replace(/\s+/g, "-").toLowerCase(),
       toCSV(
         [...columns.map((c) => c.label), "Clean Publish Link", "Shortcode", "Scrape"],
-        rows.map((r) => [...columns.map((c) => String(r[c.key] ?? "")), r.cleanLink, r.shortcode, r.scrape]),
+        rows.map((r) => [...columns.map((c) => String((r as unknown as Record<string, string>)[c.key] ?? "")), r.cleanLink, r.shortcode, r.scrape]),
       ),
     );
     toast("Sheet exported as CSV");
@@ -420,7 +420,7 @@ export default function DataAdsDetailPage() {
           open={columnsOpen}
           onClose={() => setColumnsOpen(false)}
           columns={columns}
-          kind="TL"
+          defaults={TL_COLUMNS}
           onSave={(config) => {
             cdn.setDataAdsColumns(dataAds.id, sheet.id, config);
             toast("Column layout saved");

@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 import { cdn, useCdn } from "@/lib/store";
 import { fmtInt, pct } from "@/lib/utils";
 import { PROJECT_LABEL, PROJECT_SLUG } from "@/lib/seed";
-import { TS_COLUMNS, isRowComplete } from "@/lib/sheet";
+import { isRowComplete, resolveColumns, templatesForType } from "@/lib/sheet";
 import type { ProjectType } from "@/lib/types";
 import { Icon } from "@/components/Icon";
 import { Bar, BrandAvatar, CopyButton, EmptyState, Field, Modal, PageHero, SectionHead, Select } from "@/components/ui";
@@ -45,7 +45,11 @@ export function ProjectsView({ initialType }: { initialType?: ProjectType | "ALL
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 
   const rows = scope.flatMap((p) => p.rows);
-  const complete = scope.flatMap((p) => p.rows.map((r) => isRowComplete(r, TS_COLUMNS))).filter(Boolean).length;
+  const complete = scope
+    .flatMap((p) =>
+      p.rows.map((r) => isRowComplete(r, resolveColumns(templatesForType(p.type), p.columns))),
+    )
+    .filter(Boolean).length;
   const withLink = rows.filter((r) => r.shortcode).length;
   const dataAdsCount = state.dataAds.filter(
     (d) => d.brandId === brandId && state.ui.campaignIds.includes(d.campaignId),
@@ -200,7 +204,9 @@ export function ProjectsView({ initialType }: { initialType?: ProjectType | "ALL
               </thead>
               <tbody>
                 {projects.map((p) => {
-                  const filled = p.rows.filter((r) => isRowComplete(r, TS_COLUMNS)).length;
+                  const filled = p.rows.filter((r) =>
+                    isRowComplete(r, resolveColumns(templatesForType(p.type), p.columns)),
+                  ).length;
                   const slug = p.pmLink.split("/pm/")[1] ?? p.id;
                   return (
                     <tr key={p.id}>
@@ -266,8 +272,8 @@ export function ProjectsView({ initialType }: { initialType?: ProjectType | "ALL
         <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-[#cfe0ff] bg-[#f3f8ff] px-4 py-3 text-[11.5px] leading-5 text-[#2b4a7a]">
           <Icon name="info" size={14} className="shrink-0" />
           <span>
-            <b>Required columns</b> (green): {TS_COLUMNS.filter((c) => c.required).map((c) => c.label).join(", ")}. Data
-            Ads uses its own tracker-list format in the Data Ads menu.
+            <b>Required columns</b> are green and marked with <b>*</b>. Each project type has its own template (KOL,
+            Connector, Troops, KOL Ads) and the layout can be adjusted per sheet via <b>Columns</b>.
           </span>
         </div>
       </div>
@@ -377,15 +383,18 @@ function NewProjectModal({
         </div>
 
         <div className="rounded-xl border border-[var(--line)] bg-[#fafcff] p-3">
-          <div className="eyebrow-dim !text-[8.5px]">Sheet columns</div>
+          <div className="eyebrow-dim !text-[8.5px]">Sheet columns · {PROJECT_LABEL[type]} template</div>
           <div className="mt-1.5 text-[11px] leading-5 text-[var(--muted)]">
-            {TS_COLUMNS.map((c) => (
+            {templatesForType(type).map((c) => (
               <span key={c.key} className={c.required ? "font-semibold text-[#05603a]" : "text-[#23477f]"}>
                 {c.label}
                 {c.required ? " *" : ""}
                 {" · "}
               </span>
             ))}
+          </div>
+          <div className="mt-1.5 text-[10px] text-[var(--muted-2)]">
+            The layout can be changed per sheet from the Columns button — this is the default template.
           </div>
         </div>
       </div>

@@ -901,6 +901,12 @@ textarea {
   background: #12b76a;
 }
 
+.req-star {
+  color: #b42318;
+  font-weight: 700;
+  margin-left: 2px;
+}
+
 .sheet .col-letter {
   display: block;
   font-size: 9px;

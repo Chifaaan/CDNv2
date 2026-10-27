@@ -374,7 +374,7 @@ function SheetGridInner<T extends { id: string }>(
                   <span className="col-letter">{letter(i)}</span>
                   <span className="col-label">
                     {col.label}
-                    {col.required && <span className="req-dot" />}
+                    {col.required && <span className="req-star">*</span>}
                   </span>
                 </th>
               ))}

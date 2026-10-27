@@ -7,7 +7,6 @@ import { cdn, useCdn } from "@/lib/store";
 import { download, fmtInt, pct, toCSV } from "@/lib/utils";
 import { PROJECT_LABEL, PROJECT_SLUG } from "@/lib/seed";
 import {
-  TS_COLUMNS,
   deriveSheetRow,
   emptySheetRow,
   isRowComplete,
@@ -15,6 +14,7 @@ import {
   missingRequired,
   resolveColumns,
   sheetDedupeKey,
+  templatesForType,
 } from "@/lib/sheet";
 import type { SheetRow } from "@/lib/types";
 import { Icon } from "@/components/Icon";
@@ -58,7 +58,8 @@ export default function ProjectSheetPage() {
 
   const campaign = state.campaigns.find((c) => c.id === project.campaignId);
   const brand = state.brands.find((b) => b.id === project.brandId);
-  const columns = useMemo(() => resolveColumns("TS", project.columns), [project.columns]);
+  const template = templatesForType(project.type);
+  const columns = useMemo(() => resolveColumns(template, project.columns), [template, project.columns]);
 
   const dupSet = useMemo(() => {
     const seen = new Map<string, number>();
@@ -140,7 +141,7 @@ export default function ProjectSheetPage() {
       toCSV(
         [...columns.map((c) => c.label), "Clean Publish Link", "Shortcode", "Scrape"],
         project!.rows.map((r) => [
-          ...columns.map((c) => String(r[c.key] ?? "")),
+          ...columns.map((c) => String((r as unknown as Record<string, string>)[c.key] ?? "")),
           r.cleanLink,
           r.shortcode,
           r.scrape,
@@ -346,7 +347,7 @@ export default function ProjectSheetPage() {
         open={columnsOpen}
         onClose={() => setColumnsOpen(false)}
         columns={columns}
-        kind="TS"
+        defaults={template}
         onSave={(config) => {
           cdn.setProjectColumns(project.id, config);
           toast("Column layout saved");

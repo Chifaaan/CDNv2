@@ -41,7 +41,7 @@
       - generic [ref=f2e64]:
         - link "All brands" [ref=f2e65] [cursor=pointer]:
           - /url: /
-        - generic [ref=f2e69]: Signed in as Spektrum · CDN v2 prototype
+        - generic [ref=f2e69]: Signed in as Spectrum · CDN v2 prototype
     - generic [ref=f2e70]:
       - banner [ref=f2e71]:
         - generic [ref=f2e72]:
@@ -55,7 +55,7 @@
         - generic [ref=f2e87]:
           - generic [ref=f2e88]: Synced just now
           - generic [ref=f2e90]:
-            - button "Spektrum" [ref=f2e91] [cursor=pointer]
+            - button "Spectrum" [ref=f2e91] [cursor=pointer]
             - button "Agency" [ref=f2e92] [cursor=pointer]
           - generic "Campaign Dashboard" [ref=f2e93]: CDN
           - button "Sign out" [ref=f2e99] [cursor=pointer]

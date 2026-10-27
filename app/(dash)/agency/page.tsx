@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { cdn, useCdn } from "@/lib/store";
 import { fmtInt } from "@/lib/utils";
 import { PROJECT_LABEL } from "@/lib/seed";
-import { TS_COLUMNS, TL_COLUMNS, isRowComplete } from "@/lib/sheet";
+import { TL_COLUMNS, isRowComplete, resolveColumns, templatesForType } from "@/lib/sheet";
 import { Icon } from "@/components/Icon";
-import { PageHero, SectionHead } from "@/components/ui";
+import { PageHero, SectionHead, Select } from "@/components/ui";
 import { toast } from "@/components/Toast";
 
 export default function AgencyPage() {
@@ -15,13 +16,26 @@ export default function AgencyPage() {
   const router = useRouter();
   const brandId = state.ui.brandId;
   const brand = state.brands.find((b) => b.id === brandId) ?? state.brands[0];
+  const agencies = brand?.agencies ?? [];
+  const [agency, setAgency] = useState(agencies[0] ?? "");
 
-  const projects = state.projects.filter((p) => p.brandId === brandId);
-  const containers = state.dataAds.filter((d) => d.brandId === brandId);
+  useEffect(() => {
+    setAgency(state.brands.find((b) => b.id === brandId)?.agencies[0] ?? "");
+  }, [brandId, state.brands]);
+
+  const projects = state.projects.filter((p) => p.brandId === brandId && p.agency === agency);
+  const containers = state.dataAds.filter((d) => d.brandId === brandId && d.agency === agency);
   const projectRows = projects.flatMap((p) => p.rows);
   const adRows = containers.flatMap((d) => d.sheets.flatMap((s) => s.rows));
   const incomplete =
-    projects.reduce((sum, p) => sum + p.rows.filter((r) => !isRowComplete(r, TS_COLUMNS)).length, 0) +
+    projects.reduce(
+      (sum, p) =>
+        sum +
+        p.rows.filter(
+          (r) => !isRowComplete(r, resolveColumns(templatesForType(p.type), p.columns)),
+        ).length,
+      0,
+    ) +
     containers.reduce(
       (sum, d) =>
         sum + d.sheets.reduce((s, sh) => s + sh.rows.filter((r) => !isRowComplete(r, TL_COLUMNS)).length, 0),
@@ -35,30 +49,39 @@ export default function AgencyPage() {
         title={brand.name}
         sub={
           <>
-            Your project sheets and Data Ads spreadsheets. Paste rows straight from your spreadsheet — required columns
-            are green, optional columns are blue.
+            Workspace untuk <b className="font-semibold text-[var(--ink-2)]">{agency || "—"}</b>. Pilih agency di
+            kanan untuk menampilkan sheet dan Data Ads miliknya saja.
           </>
         }
         actions={
-          <button
-            className="btn btn-ghost"
-            onClick={() => {
-              cdn.setUI({ role: "spektrum" });
-              toast("Switched back to Spektrum view");
-              router.push("/dashboard");
-            }}
-          >
-            <Icon name="arrowLeft" size={13} />
-            Back to Spektrum view
-          </button>
+          <div className="flex items-center gap-2">
+            <Select
+              ariaLabel="Agency"
+              value={agency}
+              onChange={setAgency}
+              options={agencies.map((a) => ({ value: a, label: a }))}
+              className="!h-[33px]"
+            />
+            <button
+              className="btn btn-ghost"
+              onClick={() => {
+                cdn.setUI({ role: "spectrum" });
+                toast("Switched back to Spectrum view");
+                router.push("/dashboard");
+              }}
+            >
+              <Icon name="arrowLeft" size={13} />
+              Back to Spectrum view
+            </button>
+          </div>
         }
       />
 
       <div className="relative z-[1] px-9 pt-4">
         <div className="mb-5 flex items-center gap-2 rounded-xl border border-[#cfe0ff] bg-[#f3f8ff] px-4 py-2.5 text-[11.5px] text-[#2b4a7a]">
           <Icon name="info" size={14} />
-          Agency role: dashboards, campaign setup and other brands are hidden. You only see the {brand.name} sheets
-          assigned to you.
+          Agency role: dashboards, campaign setup and other brands are hidden. Showing{" "}
+          <b>{agency || "no agency"}</b> only.
         </div>
 
         <div className="grid gap-3 sm:grid-cols-3">
@@ -73,7 +96,9 @@ export default function AgencyPage() {
             <div className="space-y-3">
               {projects.map((p) => {
                 const campaign = state.campaigns.find((c) => c.id === p.campaignId);
-                const complete = p.rows.filter((r) => isRowComplete(r, TS_COLUMNS)).length;
+                const complete = p.rows.filter((r) =>
+                  isRowComplete(r, resolveColumns(templatesForType(p.type), p.columns)),
+                ).length;
                 return (
                   <Link
                     key={p.id}

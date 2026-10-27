@@ -1,4 +1,4 @@
-export type Role = "spektrum" | "agency";
+export type Role = "spectrum" | "agency";
 
 export type CampaignType = "KOL" | "CONNECTOR" | "TROOPS" | "ATTEND";
 
@@ -9,10 +9,17 @@ export type SheetFormat = "TS" | "TL";
 
 export type ScrapeStatus = "success" | "failed" | "pending";
 
-/** Per-sheet column layout: order = array order, required = green header. */
+export type ColumnType = "text" | "url" | "date" | "number" | "percent";
+
+/** Per-sheet column layout: order = array order, required = green header with `*`. */
 export interface ColumnConfig {
   key: string;
   required: boolean;
+  label?: string;
+  type?: ColumnType;
+  width?: number;
+  hidden?: boolean;
+  custom?: boolean;
 }
 export interface Brand {
   id: string;
@@ -72,10 +79,24 @@ export interface SheetRow {
   proofLink: string;
   insightsLink: string;
   sixSecondViews: string;
+  notes: string;
+  postingDate: string;
+  // KOL Ads columns
+  adName: string;
+  byDay: string;
+  impressions: string;
+  reach: string;
+  clicks: string;
+  videoViews: string;
+  secondViews: string;
+  sixthViews: string;
+  at25: string;
+  at50: string;
+  at75: string;
+  at100: string;
   // Tracker list columns
   startDate: string;
   endDate: string;
-  oaContent: string;
   creativeName: string;
   kolCategory: string;
   vendor: string;

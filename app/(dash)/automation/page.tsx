@@ -2,12 +2,11 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 import { cdn, useCdn } from "@/lib/store";
-import { download, fmtCompact, fmtInt, pct, toCSV } from "@/lib/utils";
-import { cleanPublishLink, extractShortcode } from "@/lib/shortcode";
+import { download, fmtCompact, fmtInt, toCSV } from "@/lib/utils";
 import { AUTOMATION_COLUMNS } from "@/lib/sheet";
 import type { AutomationRow } from "@/lib/types";
 import { Icon } from "@/components/Icon";
-import { PageHero, SectionHead, StatusBadge } from "@/components/ui";
+import { PageHero, SectionHead } from "@/components/ui";
 import { SheetGrid, type SheetColumn, type SheetGridHandle } from "@/components/SheetGrid";
 import { ImportDialog } from "@/components/ImportDialog";
 import { toast } from "@/components/Toast";
@@ -54,32 +53,31 @@ const COLUMN_META: SheetColumn<AutomationRow>[] = AUTOMATION_COLUMNS.map((c) => 
   label: c.label,
   width: c.width,
   required: c.required,
-  type: c.numeric ? "number" : c.key === "linkPost" ? "url" : c.key === "date" ? "date" : "text",
+  type: c.numeric ? "number" : c.key === "date" ? "date" : "text",
 }));
 
 export default function AutomationPage() {
   const state = useCdn();
   const brandId = state.ui.brandId;
   const brand = state.brands.find((b) => b.id === brandId) ?? state.brands[0];
-  const [busy, setBusy] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const gridRef = useRef<SheetGridHandle>(null);
 
   const rows = useMemo(() => state.automation.filter((r) => r.brandId === brandId), [state.automation, brandId]);
   const makeRow = useCallback(() => emptyAutomationRow(brandId), [brandId]);
-  const matched = rows.filter((r) => r.campaignId).length;
-  const withLink = rows.filter((r) => r.shortcode).length;
-  const impressions = rows.reduce((a, r) => a + (Number(r.impressions) || 0), 0);
 
-  const dupSet = useMemo(() => {    const seen = new Map<string, number>();
+  const impressions = rows.reduce((a, r) => a + (Number(r.impressions) || 0), 0);
+  const reach = rows.reduce((a, r) => a + (Number(r.reach) || 0), 0);
+  const sixth = rows.reduce((a, r) => a + (Number(r.sixthViews) || 0), 0);
+
+  const dupSet = useMemo(() => {
+    const seen = new Map<string, number>();
     rows.forEach((r) => {
       const k = `${r.campaign}|${r.ads}|${r.date}`;
       seen.set(k, (seen.get(k) ?? 0) + 1);
     });
     return new Set(
-      rows
-        .filter((r) => (seen.get(`${r.campaign}|${r.ads}|${r.date}`) ?? 0) > 1)
-        .map((r) => r.id),
+      rows.filter((r) => (seen.get(`${r.campaign}|${r.ads}|${r.date}`) ?? 0) > 1).map((r) => r.id),
     );
   }, [rows]);
 
@@ -91,12 +89,7 @@ export default function AutomationPage() {
 
   function derive(row: AutomationRow, key: string, value: string): AutomationRow {
     if (key === "linkPost") {
-      return {
-        ...row,
-        cleanLink: cleanPublishLink(value),
-        shortcode: extractShortcode(value),
-        campaignId: null,
-      };
+      return { ...row, linkPost: value };
     }
     if (NUM_KEYS.has(key)) {
       const n = Number(String(value).replace(/[^\d.-]/g, ""));
@@ -120,31 +113,12 @@ export default function AutomationPage() {
     }
   }
 
-  function runMatching() {
-    setBusy(true);
-    setTimeout(() => {
-      const res = cdn.runMatching({ brandId });
-      setBusy(false);
-      if (res.matched > 0) {
-        toast(`${res.matched} automation row(s) linked to campaigns · ${res.unresolved} unresolved`);
-      } else if (res.eligible === 0) {
-        toast("No new links to match — paste rows with a Link Post first", "warn");
-      } else {
-        toast(`No new matches · ${res.unresolved} shortcode(s) have no tracking sheet yet`, "warn");
-      }
-    }, 700);
-  }
-
   function exportCsv() {
     download(
       `automation-${brandId}.csv`,
       toCSV(
-        [...AUTOMATION_COLUMNS.map((c) => c.label), "Shortcode", "Matched campaign"],
-        rows.map((r) => [
-          ...AUTOMATION_COLUMNS.map((c) => String((r as unknown as Record<string, string | number>)[c.key] ?? "")),
-          r.shortcode,
-          state.campaigns.find((c) => c.id === r.campaignId)?.name ?? "",
-        ]),
+        AUTOMATION_COLUMNS.map((c) => c.label),
+        rows.map((r) => AUTOMATION_COLUMNS.map((c) => String((r as unknown as Record<string, string | number>)[c.key] ?? ""))),
       ),
     );
     toast("Automation rows exported as CSV");
@@ -162,29 +136,10 @@ export default function AutomationPage() {
           (row as unknown as Record<string, string>)[c.key] = v;
         }
       });
-      row.cleanLink = cleanPublishLink(row.linkPost);
-      row.shortcode = extractShortcode(row.linkPost);
-      row.campaignId = null;
       return row;
     });
     setRows([...rows, ...mapped]);
   }
-
-  const extraColumn = {
-    label: "Matched campaign",
-    width: 200,
-    render: (r: AutomationRow) =>
-      r.campaignId ? (
-        <span className="flex items-center gap-1.5">
-          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#12b76a]" />
-          <span className="max-w-[170px] truncate text-[11px] font-medium">
-            {state.campaigns.find((c) => c.id === r.campaignId)?.name}
-          </span>
-        </span>
-      ) : (
-        <StatusBadge status="unmatched" />
-      ),
-  };
 
   return (
     <>
@@ -194,8 +149,7 @@ export default function AutomationPage() {
         sub={
           <>
             The full automation export for <b className="font-semibold text-[var(--ink-2)]">{brand.name}</b> lives here as a
-            spreadsheet. Paste the export as-is — 13 columns in the original order. Link Post can be filled later to
-            resolve the campaign.
+            spreadsheet. Paste the export as-is — 13 columns in the original order.
           </>
         }
         actions={
@@ -203,10 +157,6 @@ export default function AutomationPage() {
             <button className="btn" onClick={exportCsv}>
               <Icon name="download" size={13} />
               Export
-            </button>
-            <button className="btn btn-primary" onClick={runMatching} disabled={busy}>
-              <Icon name="spark" size={13} className={busy ? "spin" : ""} />
-              {busy ? "Matching…" : "Run matching"}
             </button>
             <button className="btn btn-dark" onClick={() => setImportOpen(true)}>
               <Icon name="upload" size={13} />
@@ -219,19 +169,9 @@ export default function AutomationPage() {
       <div className="relative z-[1] px-9 pt-5">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <Stat label="Raw rows" value={fmtInt(rows.length)} hint="Whole automation file" />
-          <Stat
-            label="Matched"
-            value={pct(rows.length ? matched / rows.length : 0)}
-            hint={`${fmtInt(matched)} rows linked`}
-            accent="ok"
-          />
-          <Stat
-            label="Unresolved"
-            value={fmtInt(rows.length - matched)}
-            hint={`${withLink} rows carry a link`}
-            accent={rows.length - matched ? "warn" : "ok"}
-          />
           <Stat label="Impressions" value={fmtCompact(impressions)} hint="Sum of all raw rows" />
+          <Stat label="Reach" value={fmtCompact(reach)} hint="Sum of all raw rows" />
+          <Stat label="6s focused views" value={fmtCompact(sixth)} hint="Sum of all raw rows" />
         </div>
 
         <div className="mt-5 flex flex-wrap items-center gap-2">
@@ -285,32 +225,16 @@ export default function AutomationPage() {
             makeRow={makeRow}
             duplicates={dupSet}
             dedupeKey={(r) => `${r.campaign}|${r.ads}|${r.date}`}
-            extraColumn={extraColumn}
-            marker={(r) => (r.shortcode && !r.campaignId ? "warn" : null)}
             emptyHint="Paste the automation export here — columns match the original file."
           />
         </div>
 
-        <div className="mt-4 grid gap-3 lg:grid-cols-[1.4fr_1fr]">
-          <div className="rounded-xl border border-[#cfe0ff] bg-[#f3f8ff] px-4 py-3 text-[11.5px] leading-5 text-[#2b4a7a]">
-            <div className="mb-1 flex items-center gap-1.5 font-semibold">
-              <Icon name="info" size={13} />
-              Why the campaign name is never used
-            </div>
-            Names like{" "}
-            <span className="mono rounded bg-white px-1 text-[10.5px]">02261_5880_ID_{brand.name} Topping_Mom_TT_CPV</span>{" "}
-            never match a tracking sheet. Matching runs on the shortcode from Link Post against every {brand.name} tracking
-            sheet — rows without a link stay unresolved.
-          </div>
-          <div className="flex items-center justify-between gap-3 rounded-xl border border-[var(--line)] bg-white px-4 py-3">
-            <div className="text-[11.5px] leading-5">
-              <div className="font-semibold">Run matching after every import</div>
-              <div className="text-[var(--muted-2)]">Unmatched rows keep their raw data.</div>
-            </div>
-            <button className="btn btn-primary btn-sm shrink-0" onClick={runMatching} disabled={busy}>
-              <Icon name="spark" size={12} /> Match
-            </button>
-          </div>
+        <div className="mt-4 flex items-center gap-2 rounded-xl border border-[#cfe0ff] bg-[#f3f8ff] px-4 py-3 text-[11.5px] leading-5 text-[#2b4a7a]">
+          <Icon name="info" size={14} className="shrink-0" />
+          <span>
+            This sheet mirrors the raw automation export: Campaign, Ads, Date and the performance metrics. Paste a block
+            or import the CSV as it is.
+          </span>
         </div>
       </div>
 
@@ -326,13 +250,11 @@ export default function AutomationPage() {
   );
 }
 
-function Stat({ label, value, hint, accent }: { label: string; value: string; hint: string; accent?: "ok" | "warn" }) {
+function Stat({ label, value, hint }: { label: string; value: string; hint: string }) {
   return (
     <div className="card px-4 py-3.5">
       <div className="eyebrow-dim !text-[9px]">{label}</div>
-      <div className="metric-sm mt-1.5" style={{ color: accent === "warn" ? "#b25c05" : accent === "ok" ? "#067647" : undefined }}>
-        {value}
-      </div>
+      <div className="metric-sm mt-1.5">{value}</div>
       <div className="mt-1 text-[10.5px] text-[var(--muted-2)]">{hint}</div>
     </div>
   );

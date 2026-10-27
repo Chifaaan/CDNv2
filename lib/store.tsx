@@ -256,7 +256,7 @@ export const cdn = {
       campaignId: input.campaignId,
       type: input.type,
       agency: input.agency,
-      pmLink: `https://cdn.spektrum.id/pm/${(campaign?.name ?? "project")
+      pmLink: `https://cdn.spectrum.id/pm/${(campaign?.name ?? "project")
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/(^-|-$)/g, "")}-${input.type.toLowerCase().replace("_", "-")}-${id.slice(-4)}`,

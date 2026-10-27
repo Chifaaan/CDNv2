@@ -147,7 +147,7 @@ export default function BrandChooserPage() {
                   <button
                     className="btn btn-ghost"
                     onClick={() => {
-                      const url = `https://cdn.spektrum.id/client/${brand.id}`;
+                      const url = `https://cdn.spectrum.id/client/${brand.id}`;
                       navigator.clipboard?.writeText(url).catch(() => {});
                       toast(`Client link copied · ${url}`);
                     }}
@@ -166,7 +166,7 @@ export default function BrandChooserPage() {
             </span>
             <div className="text-[12.5px] font-medium">New brand</div>
             <div className="max-w-[220px] text-[11px] leading-5 text-[var(--muted-2)]">
-              Brand setup is handled by Spektrum. Agency accounts cannot create brands.
+              Brand setup is handled by Spectrum. Agency accounts cannot create brands.
             </div>
           </div>
         </div>

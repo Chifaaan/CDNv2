@@ -104,7 +104,7 @@ export function CampaignListView() {
   return (
     <>
       <PageHero
-        eyebrow="Campaign · Spektrum setup"
+        eyebrow="Campaign · Spectrum setup"
         title="Campaign list"
         sub={
           <>
@@ -427,7 +427,7 @@ export function CampaignListView() {
             </span>
             <div className="text-[12.5px] font-medium">New campaign</div>
             <div className="max-w-[220px] text-[11px] leading-5 text-[var(--muted-2)]">
-              Campaign setup is handled by Spektrum.
+              Campaign setup is handled by Spectrum.
             </div>
           </div>
         </div>
@@ -521,7 +521,7 @@ function CampaignFormModal({
     <Modal
       open={open}
       onClose={onClose}
-      eyebrow={campaign ? "Edit campaign" : "Spektrum setup"}
+      eyebrow={campaign ? "Edit campaign" : "Spectrum setup"}
       title={campaign ? "Edit campaign" : "New campaign"}
       subtitle="Campaigns are the anchor for project sheets, Data Ads and automation matching."
       footer={

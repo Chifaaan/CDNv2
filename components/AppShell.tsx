@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { cdn, useCdn } from "@/lib/store";
 import { relTime } from "@/lib/utils";
 import { brandStyle } from "@/lib/seed";
@@ -32,11 +32,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [role, brandId, sidebarCollapsed] = [state.ui.role, state.ui.brandId, state.ui.sidebarCollapsed];
   const [dashOpen, setDashOpen] = useState(true);
   const [groupOpen, setGroupOpen] = useState(false);
+  const [campaignMenuOpen, setCampaignMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const brand = state.brands.find((b) => b.id === brandId) ?? state.brands[0];
   const brandStyleValue = brandStyle(brand?.hue ?? 210);
 
   const activeCampaigns = state.campaigns.filter((c) => state.ui.campaignIds.includes(c.id));
   const activeCampaign = activeCampaigns[0];
+  const brandCampaigns = useMemo(
+    () => state.campaigns.filter((c) => c.brandId === brandId),
+    [state.campaigns, brandId],
+  );
   const activeGroup = state.ui.groupId ? state.groups.find((g) => g.id === state.ui.groupId) : null;
 
   const counts = useMemo(
@@ -62,6 +68,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       router.replace("/agency");
     }
   }, [role, pathname, router]);
+
+  useEffect(() => {
+    if (!campaignMenuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setCampaignMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [campaignMenuOpen]);
 
   const isActive = (href: string) => {
     if (href === "/dashboard") return pathname === "/dashboard";
@@ -196,7 +211,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </Link>
           {!sidebarCollapsed && (
             <div className="sidebar-foot-note mt-2 px-2 pb-1 text-[10px] leading-4 text-[var(--muted-2)]">
-              Signed in as <span className="font-semibold text-[var(--ink-2)]">Spektrum</span> · CDN v2 prototype
+              Signed in as <span className="font-semibold text-[var(--ink-2)]">Spectrum</span> · CDN v2 prototype
             </div>
           )}
         </div>
@@ -226,16 +241,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
             <div className="hidden h-4 w-px bg-[var(--line-2)] sm:block" />
 
-            <Link
-              href="/campaigns"
-              className="chip hidden max-w-[220px] !h-[30px] min-[1100px]:inline-flex hover:border-[var(--line-3)]"
-              title={activeGroup ? "Dashboard scope: campaign group" : "Active campaign"}
-            >
-              <span className="dot bg-[#2f6bff]" />
-              <span className="truncate normal-case tracking-normal">{scopeLabel}</span>
-              <Icon name="chevronDown" size={11} className="shrink-0 text-[var(--muted-2)]" />
-            </Link>
-
             <button
               className="btn btn-sm ml-1 hidden xl:inline-flex"
               onClick={() => {
@@ -258,15 +263,92 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               Synced {relTime(state.ui.lastSync)}
             </div>
 
+            <div className="relative hidden min-[1100px]:block" ref={menuRef}>
+              <button
+                className="chip max-w-[240px] !h-[30px] hover:border-[var(--line-3)]"
+                onClick={() => setCampaignMenuOpen((v) => !v)}
+                title="Select campaigns"
+                aria-expanded={campaignMenuOpen}
+              >
+                <span className="dot bg-[#2f6bff]" />
+                <span className="truncate normal-case tracking-normal">{scopeLabel}</span>
+                <Icon
+                  name="chevronDown"
+                  size={11}
+                  className={`shrink-0 text-[var(--muted-2)] transition-transform ${campaignMenuOpen ? "rotate-180" : ""}`}
+                />
+              </button>
+
+              {campaignMenuOpen && (
+                <div className="absolute left-0 top-[38px] z-[60] w-[310px] overflow-hidden rounded-xl border border-[var(--line-2)] bg-white shadow-[0_24px_50px_-20px_rgba(10,26,51,0.35)]">
+                  <button
+                    className="flex w-full items-center gap-2.5 border-b border-[var(--line)] bg-[#fafcff] px-3 py-2.5 text-left"
+                    onClick={() => {
+                      const all = brandCampaigns.length > 0 && brandCampaigns.every((c) => state.ui.campaignIds.includes(c.id));
+                      cdn.setCampaignSelection(all ? [] : brandCampaigns.map((c) => c.id));
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      readOnly
+                      checked={brandCampaigns.length > 0 && brandCampaigns.every((c) => state.ui.campaignIds.includes(c.id))}
+                      className="pointer-events-none accent-[var(--blue)]"
+                    />
+                    <span className="text-[12px] font-semibold">All campaigns</span>
+                    <span className="ml-auto text-[10px] text-[var(--muted-2)]">{brandCampaigns.length}</span>
+                  </button>
+
+                  <div className="max-h-[280px] overflow-y-auto py-1">
+                    {brandCampaigns.map((c) => {
+                      const on = state.ui.campaignIds.includes(c.id);
+                      return (
+                        <label
+                          key={c.id}
+                          className="flex cursor-pointer items-center gap-2.5 px-3 py-[7px] text-[11.5px] hover:bg-[#f4f8ff]"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={on}
+                            onChange={() => {
+                              const next = on
+                                ? state.ui.campaignIds.filter((id) => id !== c.id)
+                                : [...state.ui.campaignIds, c.id];
+                              cdn.setCampaignSelection(next);
+                            }}
+                            className="accent-[var(--blue)]"
+                          />
+                          <span className={`min-w-0 flex-1 truncate ${on ? "font-medium" : ""}`}>{c.name}</span>
+                          <span className="shrink-0 text-[9px] uppercase tracking-[0.06em] text-[var(--muted-2)]">
+                            {c.agency}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+
+                  <button
+                    className="flex w-full items-center gap-2 border-t border-[var(--line)] px-3 py-2 text-[11px] font-medium text-[var(--blue-deep)] hover:bg-[#f7faff]"
+                    onClick={() => {
+                      setCampaignMenuOpen(false);
+                      router.push("/campaigns");
+                    }}
+                  >
+                    <Icon name="list" size={12} />
+                    Manage campaigns
+                  </button>
+                </div>
+              )}
+            </div>
+
             <div className="seg hidden h-[30px] !bg-white/80 md:flex">
               <button
-                className={`!h-[23px] !min-w-0 !px-2.5 !text-[9.5px] !uppercase !tracking-[0.08em] ${role === "spektrum" ? "is-on" : ""}`}
+                className={`!h-[23px] !min-w-0 !px-2.5 !text-[9.5px] !uppercase !tracking-[0.08em] ${role === "spectrum" ? "is-on" : ""}`}
                 onClick={() => {
-                  cdn.setUI({ role: "spektrum" });
+                  cdn.setUI({ role: "spectrum" });
                   router.push("/dashboard");
                 }}
               >
-                Spektrum
+                Spectrum
               </button>
               <button
                 className={`!h-[23px] !min-w-0 !px-2.5 !text-[9.5px] !uppercase !tracking-[0.08em] ${role === "agency" ? "is-on" : ""}`}
