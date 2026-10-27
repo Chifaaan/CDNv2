@@ -45,6 +45,8 @@ export interface SheetGridProps<T extends { id: string }> {
   emptyHint?: string;
   onPasteReport?: (report: { pasted: number; skipped: number; cells: number }) => void;
   onSelectRow?: (row: T | null, index: number) => void;
+  onUndo?: () => void;
+  onDeleteRow?: (row: T, index: number) => void;
 }
 
 function letter(i: number): string {
@@ -72,6 +74,8 @@ function SheetGridInner<T extends { id: string }>(
     emptyHint,
     onPasteReport,
     onSelectRow,
+    onUndo,
+    onDeleteRow,
   }: SheetGridProps<T>,
   ref: React.Ref<SheetGridHandle>,
 ) {
@@ -242,6 +246,11 @@ function SheetGridInner<T extends { id: string }>(
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (editing) return;
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
+      e.preventDefault();
+      onUndo?.();
+      return;
+    }
     if (e.metaKey || e.ctrlKey) {
       if (e.key.toLowerCase() === "v") return; // let paste event run
       if (e.key.toLowerCase() === "c") {
@@ -349,6 +358,12 @@ function SheetGridInner<T extends { id: string }>(
           <thead>
             <tr>
               <th className="corner" />
+              {onDeleteRow && (
+                <th className="col-head" style={{ width: 44, minWidth: 44 }}>
+                  <span className="col-letter">#</span>
+                  <span className="col-label">Row</span>
+                </th>
+              )}
               {columns.map((col, i) => (
                 <th
                   key={col.key}
@@ -388,6 +403,26 @@ function SheetGridInner<T extends { id: string }>(
                     {mark === "bad" && <span className="ml-1 inline-block h-1 w-1 rounded-full bg-[#e5484d] align-middle" />}
                     {mark === "warn" && <span className="ml-1 inline-block h-1 w-1 rounded-full bg-[#f79009] align-middle" />}
                   </td>
+                  {onDeleteRow && (
+                    <td className="cell cell-actions">
+                      {r < rows.length && (
+                        <button
+                          className="row-del"
+                          title="Delete row"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeleteRow(row, r);
+                          }}
+                        >
+                          <Icon name="trash" size={12} />
+                        </button>
+                      )}
+                    </td>
+                  )}
                   {columns.map((col, c) => {
                     const value = String((row as Record<string, unknown>)[col.key] ?? "");
                     const inRange = r >= box.r0 && r <= box.r1 && c >= box.c0 && c <= box.c1;
@@ -463,7 +498,7 @@ function SheetGridInner<T extends { id: string }>(
             {rows.length === 0 && emptyHint && (
               <tr>
                 <td className="row-head" />
-                <td colSpan={columns.length + (extraColumn ? 1 : 0)} className="px-3 py-6 text-[12px] text-[var(--muted-2)]">
+                <td colSpan={columns.length + (extraColumn ? 1 : 0) + (onDeleteRow ? 1 : 0)} className="px-3 py-6 text-[12px] text-[var(--muted-2)]">
                   {emptyHint}
                 </td>
               </tr>

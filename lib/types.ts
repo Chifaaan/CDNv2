@@ -7,10 +7,13 @@ export type ProjectType = "KOL" | "CONNECTOR" | "KOL_ADS" | "TROOPS";
 
 export type SheetFormat = "TS" | "TL";
 
-export type CampaignStatus = "live" | "scheduled" | "ended";
-
 export type ScrapeStatus = "success" | "failed" | "pending";
 
+/** Per-sheet column layout: order = array order, required = green header. */
+export interface ColumnConfig {
+  key: string;
+  required: boolean;
+}
 export interface Brand {
   id: string;
   name: string;
@@ -38,9 +41,9 @@ export interface Campaign {
   id: string;
   brandId: string;
   name: string;
+  /** Internal effort profile — never shown in the UI. */
   type: CampaignType;
   agency: string;
-  status: CampaignStatus;
   start: string;
   end: string;
   metrics: CampaignMetrics;
@@ -99,12 +102,14 @@ export interface Project {
   createdAt: string;
   savedAt: string;
   rows: SheetRow[];
+  columns?: ColumnConfig[];
 }
 
 export interface DataAdsSheet {
   id: string;
   name: string;
   rows: SheetRow[];
+  columns?: ColumnConfig[];
 }
 
 export interface DataAds {
@@ -143,9 +148,9 @@ export interface AutomationRow {
 export interface UIState {
   role: Role;
   brandId: string;
-  /** Single active campaign — project sheets and Data Ads are scoped to it. */
-  campaignId: string;
-  /** Optional dashboard scope: a group of live campaigns. */
+  /** Multi-select scope: project sheets and Data Ads show all selected campaigns. */
+  campaignIds: string[];
+  /** Optional dashboard scope label when the selection came from a group. */
   groupId: string | null;
   sidebarCollapsed: boolean;
   lastSync: string;

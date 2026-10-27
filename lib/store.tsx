@@ -6,6 +6,7 @@ import type {
   Campaign,
   CampaignGroup,
   CampaignType,
+  ColumnConfig,
   DataAds,
   DataAdsSheet,
   Project,
@@ -86,18 +87,34 @@ export const cdn = {
     const firstCampaign = s.campaigns.find((c) => c.brandId === brandId);
     commit({
       ...s,
-      ui: { ...s.ui, brandId, campaignId: firstCampaign?.id ?? s.ui.campaignId, groupId: null },
+      ui: {
+        ...s.ui,
+        brandId,
+        campaignIds: firstCampaign ? [firstCampaign.id] : [],
+        groupId: null,
+      },
     });
   },
 
-  setCampaign(campaignId: string) {
+  setCampaignSelection(campaignIds: string[]) {
     const s = getState();
-    commit({ ...s, ui: { ...s.ui, campaignId, groupId: null } });
+    commit({ ...s, ui: { ...s.ui, campaignIds, groupId: null } });
+  },
+
+  toggleCampaign(campaignId: string) {
+    const s = getState();
+    const has = s.ui.campaignIds.includes(campaignId);
+    const next = has ? s.ui.campaignIds.filter((id) => id !== campaignId) : [...s.ui.campaignIds, campaignId];
+    commit({ ...s, ui: { ...s.ui, campaignIds: next.length ? next : s.ui.campaignIds, groupId: null } });
   },
 
   openGroup(groupId: string) {
     const s = getState();
-    commit({ ...s, ui: { ...s.ui, groupId } });
+    const group = s.groups.find((g) => g.id === groupId);
+    commit({
+      ...s,
+      ui: { ...s.ui, groupId, campaignIds: group ? group.campaignIds : s.ui.campaignIds },
+    });
   },
 
   closeGroup() {
@@ -119,20 +136,18 @@ export const cdn = {
   addCampaign(input: {
     brandId: string;
     name: string;
-    type: CampaignType;
+    type?: CampaignType;
     agency: string;
     start: string;
     end: string;
-    status?: Campaign["status"];
   }) {
     const s = getState();
     const campaign: Campaign = {
       id: `cmp_${Math.random().toString(36).slice(2, 8)}`,
       brandId: input.brandId,
       name: input.name,
-      type: input.type,
+      type: input.type ?? "KOL",
       agency: input.agency,
-      status: input.status ?? "live",
       start: input.start,
       end: input.end,
       metrics: {
@@ -167,7 +182,8 @@ export const cdn = {
       .map((g) => ({ ...g, campaignIds: g.campaignIds.filter((c) => c !== id) }))
       .filter((g) => g.campaignIds.length > 0);
     const automation = s.automation.map((r) => (r.campaignId === id ? { ...r, campaignId: null } : r));
-    const fallback = s.campaigns.find((c) => c.brandId === s.ui.brandId && c.id !== id)?.id ?? "";
+    const remaining = s.campaigns.filter((c) => c.id !== id && c.brandId === s.ui.brandId);
+    const selected = s.ui.campaignIds.filter((c) => c !== id);
 
     commit({
       ...s,
@@ -178,7 +194,7 @@ export const cdn = {
       campaigns: s.campaigns.filter((c) => c.id !== id),
       ui: {
         ...s.ui,
-        campaignId: s.ui.campaignId === id ? fallback : s.ui.campaignId,
+        campaignIds: selected.length ? selected : remaining[0] ? [remaining[0].id] : [],
         groupId: s.ui.groupId && !groups.some((g) => g.id === s.ui.groupId) ? null : s.ui.groupId,
       },
     });
@@ -188,14 +204,26 @@ export const cdn = {
 
   addGroup(input: { brandId: string; name: string; description: string; campaignIds: string[] }) {
     const s = getState();
+    const picked = new Set(input.campaignIds);
     const group: CampaignGroup = { id: `grp_${Math.random().toString(36).slice(2, 8)}`, ...input };
-    commit({ ...s, groups: [group, ...s.groups] });
+    const groups = s.groups
+      .map((g) => ({ ...g, campaignIds: g.campaignIds.filter((id) => !picked.has(id)) }))
+      .filter((g) => g.campaignIds.length > 0);
+    commit({ ...s, groups: [group, ...groups] });
     return group;
   },
 
   updateGroup(id: string, patch: Partial<CampaignGroup>) {
     const s = getState();
-    commit({ ...s, groups: s.groups.map((g) => (g.id === id ? { ...g, ...patch } : g)) });
+    const picked = new Set(patch.campaignIds ?? []);
+    const groups = s.groups
+      .map((g) => {
+        if (g.id === id) return { ...g, ...patch };
+        if (!picked.size) return g;
+        return { ...g, campaignIds: g.campaignIds.filter((c) => !picked.has(c)) };
+      })
+      .filter((g) => g.id === id || g.campaignIds.length > 0);
+    commit({ ...s, groups });
   },
 
   deleteGroup(id: string) {
@@ -238,6 +266,14 @@ export const cdn = {
     commit({
       ...s,
       projects: s.projects.map((p) => (p.id === projectId ? { ...p, rows, savedAt: nowIso() } : p)),
+    });
+  },
+
+  setProjectColumns(projectId: string, columns: ColumnConfig[]) {
+    const s = getState();
+    commit({
+      ...s,
+      projects: s.projects.map((p) => (p.id === projectId ? { ...p, columns, savedAt: nowIso() } : p)),
     });
   },
 
@@ -317,6 +353,22 @@ export const cdn = {
       dataAds: s.dataAds.map((d) =>
         d.id === dataAdsId
           ? { ...d, savedAt: nowIso(), sheets: d.sheets.map((sh) => (sh.id === sheetId ? { ...sh, rows } : sh)) }
+          : d,
+      ),
+    });
+  },
+
+  setDataAdsColumns(dataAdsId: string, sheetId: string, columns: ColumnConfig[]) {
+    const s = getState();
+    commit({
+      ...s,
+      dataAds: s.dataAds.map((d) =>
+        d.id === dataAdsId
+          ? {
+              ...d,
+              savedAt: nowIso(),
+              sheets: d.sheets.map((sh) => (sh.id === sheetId ? { ...sh, columns } : sh)),
+            }
           : d,
       ),
     });

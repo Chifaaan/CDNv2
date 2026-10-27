@@ -74,17 +74,13 @@ export function DashboardView({ effort }: { effort?: EffortKey }) {
   const range = state.ui.range;
 
   const group = state.ui.groupId ? state.groups.find((g) => g.id === state.ui.groupId) : undefined;
-  const campaign =
-    state.campaigns.find((c) => c.id === state.ui.campaignId) ??
-    state.campaigns.find((c) => c.brandId === brandId);
 
-  const scoped = useMemo(() => {
-    if (group) {
-      const list = state.campaigns.filter((c) => group.campaignIds.includes(c.id));
-      if (list.length) return list;
-    }
-    return campaign ? [campaign] : [];
-  }, [group, state.campaigns, campaign]);
+  const scoped = useMemo(
+    () => state.campaigns.filter((c) => state.ui.campaignIds.includes(c.id)),
+    [state.campaigns, state.ui.campaignIds],
+  );
+  const campaign = scoped[0];
+  const multi = scoped.length > 1;
 
   const aggregates = useMemo(() => {
     const out = {} as Record<EffortKey, Aggregate>;
@@ -125,7 +121,9 @@ export function DashboardView({ effort }: { effort?: EffortKey }) {
     ? `CAMPAIGN DASHBOARD · ${brand.name.toUpperCase()} · ${EFFORT_META[effort].label.toUpperCase()} PERFORMANCE`
     : group
       ? `CAMPAIGN DASHBOARD · ${brand.name.toUpperCase()} · GROUP`
-      : `CAMPAIGN DASHBOARD · ${brand.name.toUpperCase()} · ${campaign?.type ?? ""}`;
+      : multi
+        ? `CAMPAIGN DASHBOARD · ${brand.name.toUpperCase()} · MULTI-CAMPAIGN`
+        : `CAMPAIGN DASHBOARD · ${brand.name.toUpperCase()} · ${campaign?.type ?? ""}`;
 
   const kpis = [
     { label: "Total views", value: totals.organic + totals.gs + totals.adsVideo, hint: "Organic + GS + ads video views" },
@@ -136,13 +134,13 @@ export function DashboardView({ effort }: { effort?: EffortKey }) {
     { label: "Followers", value: totals.followers, hint: "Net new followers from KOL accounts" },
   ];
 
-  if (!campaign && !group) {
+  if (!scoped.length) {
     return (
       <div className="px-9 pt-10">
         <div className="card px-6 py-16 text-center">
-          <div className="text-[13px] font-semibold">No campaign in this brand yet</div>
+          <div className="text-[13px] font-semibold">No campaign selected</div>
           <p className="mx-auto mt-1 max-w-[340px] text-[12px] leading-5 text-[var(--muted)]">
-            Create a campaign from the campaign list, then this dashboard fills itself.
+            Pick one or more campaigns from the campaign list, then this dashboard fills itself.
           </p>
           <Link href="/campaigns" className="btn btn-sm mt-4">
             Open campaign list
@@ -156,18 +154,15 @@ export function DashboardView({ effort }: { effort?: EffortKey }) {
     <>
       <PageHero
         eyebrow={heroEyebrow}
-        title={group ? group.name : campaign?.name ?? ""}
+        title={group ? group.name : multi ? `${scoped.length} campaigns` : campaign?.name ?? ""}
         sub={
-          group ? (
+          group || multi ? (
             <>
-              {brand.name} · {scoped.length} live campaigns · dashboard roll-up
+              {brand.name} · {scoped.length} campaign{scoped.length === 1 ? "" : "s"} · dashboard roll-up
             </>
           ) : (
             <>
-              {brand.name} · {campaign?.agency} · {campaign?.start} → {campaign?.end}{" "}
-              <span className="ml-1 inline-flex align-middle">
-                <StatusBadge status={campaign?.status ?? "live"} />
-              </span>
+              {brand.name} · {campaign?.agency} · {campaign?.start} → {campaign?.end}
             </>
           )
         }
@@ -330,8 +325,8 @@ export function DashboardView({ effort }: { effort?: EffortKey }) {
 
         <div className="space-y-4">
           <div className="card p-5">
-            <SectionHead title={group ? "Group detail" : "Campaign detail"} className="!mb-3" />
-            {group ? (
+            <SectionHead title={group || multi ? "Scope detail" : "Campaign detail"} className="!mb-3" />
+            {group || multi ? (
               <>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-[11.5px]">
                   <Detail label="Brand" value={brand.name} />
@@ -342,7 +337,7 @@ export function DashboardView({ effort }: { effort?: EffortKey }) {
                 <div className="mt-4 flex flex-wrap gap-1.5 border-t border-[var(--line)] pt-3">
                   {scoped.map((c) => (
                     <span key={c.id} className="chip !h-[24px] !px-2 !text-[9px]">
-                      <span className="dot" style={{ background: c.status === "live" ? "#12b76a" : "#94a3b8" }} />
+                      <span className="dot bg-[#2f6bff]" />
                       {c.name}
                     </span>
                   ))}
@@ -352,9 +347,7 @@ export function DashboardView({ effort }: { effort?: EffortKey }) {
               <>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-[11.5px]">
                   <Detail label="Brand" value={brand.name} />
-                  <Detail label="Campaign type" value={campaign?.type ?? ""} />
                   <Detail label="Agency" value={campaign?.agency ?? ""} />
-                  <Detail label="Status" value={campaign?.status ?? ""} />
                   <Detail label="Start" value={campaign?.start ?? ""} />
                   <Detail label="End" value={campaign?.end ?? ""} />
                   <Detail label="Project sheets" value={String(projects.length)} />

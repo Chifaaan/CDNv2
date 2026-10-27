@@ -30,6 +30,8 @@ export default function ProjectSheetPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [selected, setSelected] = useState<SheetRow | null>(null);
   const [saving, setSaving] = useState(false);
+  const [canUndo, setCanUndo] = useState(false);
+  const history = useRef<SheetRow[][]>([]);
   const gridRef = useRef<SheetGridHandle>(null);
 
   if (!project) {
@@ -77,11 +79,22 @@ export default function ProjectSheetPage() {
     (r) => !isRowEmpty(r, columns) && missingRequired(r, columns).length > 0,
   ).length;
   const linked = project.rows.filter((r) => r.shortcode).length;
-  const ok = project.rows.filter((r) => r.scrape === "success").length;
-  const failed = project.rows.filter((r) => r.scrape === "failed").length;
 
-  function setRows(next: SheetRow[]) {
+  function applyRows(next: SheetRow[]) {
+    history.current.push(project!.rows);
+    if (history.current.length > 40) history.current.shift();
+    setCanUndo(true);
     cdn.setProjectRows(project!.id, next);
+  }
+
+  function undo() {
+    const prev = history.current.pop();
+    setCanUndo(history.current.length > 0);
+    if (prev) cdn.setProjectRows(project!.id, prev);
+  }
+
+  function deleteRow(row: SheetRow) {
+    applyRows(project!.rows.filter((r) => r.id !== row.id));
   }
 
   function removeDuplicates() {
@@ -93,13 +106,13 @@ export default function ProjectSheetPage() {
       seen.add(k);
       return true;
     });
-    setRows(kept);
+    applyRows(kept);
     toast(`${project!.rows.length - kept.length} duplicate row(s) removed`);
   }
 
   function clearEmpty() {
     const kept = project!.rows.filter((r) => !isRowEmpty(r, columns));
-    setRows(kept);
+    applyRows(kept);
     toast(`${project!.rows.length - kept.length} empty row(s) cleared`);
   }
 
@@ -151,7 +164,7 @@ export default function ProjectSheetPage() {
       row.shortcode = derived.shortcode;
       return row;
     });
-    setRows([...project!.rows, ...mapped]);
+    applyRows([...project!.rows, ...mapped]);
   }
 
   return (
@@ -198,19 +211,13 @@ export default function ProjectSheetPage() {
       />
 
       <div className="relative z-[1] px-9 pt-4">
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <SheetStat label="Rows" value={fmtInt(rowCount)} hint={`${complete} complete rows`} />
+        <div className="grid gap-3 sm:grid-cols-3">
+          <SheetStat label="Rows" value={fmtInt(rowCount)} hint={`${complete} complete rows · ${linked} shortcodes`} />
           <SheetStat
             label="Required complete"
             value={pct(rowCount ? complete / rowCount : 0)}
             hint={incomplete ? `${incomplete} rows missing required columns` : "All rows have required columns"}
             accent={incomplete ? "warn" : "ok"}
-          />
-          <SheetStat
-            label="Scrape success"
-            value={pct(rowCount ? ok / rowCount : 0)}
-            hint={`${failed} failed links · ${linked} shortcodes`}
-            accent={ok === rowCount && rowCount > 0 ? "ok" : undefined}
           />
           <SheetStat
             label="Duplicates"
@@ -221,6 +228,10 @@ export default function ProjectSheetPage() {
         </div>
 
         <div className="mt-5 flex flex-wrap items-center gap-2">
+          <button className="btn" onClick={undo} disabled={!canUndo} title="Undo last change (Ctrl+Z)">
+            <Icon name="undo" size={13} />
+            Undo
+          </button>
           <button className="btn" onClick={pasteFromClipboard}>
             <Icon name="copy" size={13} />
             Paste block
@@ -229,7 +240,7 @@ export default function ProjectSheetPage() {
             <Icon name="upload" size={13} />
             Import CSV
           </button>
-          <button className="btn" onClick={() => setRows([...project.rows, emptySheetRow()])}>
+          <button className="btn" onClick={() => applyRows([...project.rows, emptySheetRow()])}>
             <Icon name="plus" size={13} />
             Add row
           </button>
@@ -256,18 +267,16 @@ export default function ProjectSheetPage() {
             ref={gridRef}
             columns={columns}
             rows={project.rows}
-            onChange={setRows}
+            onChange={applyRows}
             derive={deriveSheetRow}
             makeRow={emptySheetRow}
             duplicates={dupSet}
             dedupeKey={sheetDedupeKey}
             onSelectRow={(row) => setSelected(row)}
+            onUndo={undo}
+            onDeleteRow={deleteRow}
             marker={(r) =>
-              !isRowEmpty(r, columns) && missingRequired(r, columns).length > 0
-                ? "bad"
-                : r.scrape === "failed"
-                  ? "warn"
-                  : null
+              !isRowEmpty(r, columns) && missingRequired(r, columns).length > 0 ? "bad" : null
             }
             emptyHint="Paste a block of rows from your spreadsheet, or use Import to map columns."
           />
@@ -297,15 +306,6 @@ export default function ProjectSheetPage() {
           </div>
 
           <div>
-            <div className="eyebrow-dim !text-[8.5px]">Scrape</div>
-            {selected?.publishLink ? (
-              <StatusBadge status={selected.scrape} />
-            ) : (
-              <span className="text-[11px] text-[var(--muted-2)]">—</span>
-            )}
-          </div>
-
-          <div>
             <div className="eyebrow-dim !text-[8.5px]">Missing required</div>
             <div className="text-[11px] font-medium">
               {selected && !isRowEmpty(selected, columns)
@@ -314,8 +314,8 @@ export default function ProjectSheetPage() {
             </div>
           </div>
 
-          <div className="ml-auto text-[10px] text-[var(--muted-2)]">
-            Select a row to inspect · these values are never typed
+          <div className="ml-auto flex items-center gap-2 text-[10px] text-[var(--muted-2)]">
+            <span>Ctrl+Z to undo · trash icon removes a row</span>
           </div>
         </div>
 

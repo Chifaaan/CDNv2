@@ -31,21 +31,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const brand = state.brands.find((b) => b.id === brandId) ?? state.brands[0];
   const brandStyleValue = brandStyle(brand?.hue ?? 210);
 
-  const activeCampaign =
-    state.campaigns.find((c) => c.id === state.ui.campaignId) ??
-    state.campaigns.find((c) => c.brandId === brandId);
+  const activeCampaigns = state.campaigns.filter((c) => state.ui.campaignIds.includes(c.id));
+  const activeCampaign = activeCampaigns[0];
   const activeGroup = state.ui.groupId ? state.groups.find((g) => g.id === state.ui.groupId) : null;
 
   const counts = useMemo(
     () => ({
       projects: state.projects.filter(
-        (p) => p.brandId === brandId && p.campaignId === activeCampaign?.id,
+        (p) => p.brandId === brandId && state.ui.campaignIds.includes(p.campaignId),
       ).length,
       dataAds: state.dataAds.filter(
-        (d) => d.brandId === brandId && d.campaignId === activeCampaign?.id,
+        (d) => d.brandId === brandId && state.ui.campaignIds.includes(d.campaignId),
       ).length,
     }),
-    [state.projects, state.dataAds, brandId, activeCampaign?.id],
+    [state.projects, state.dataAds, state.ui.campaignIds, brandId],
   );
 
   const activeProjectType = useMemo(() => {
@@ -99,7 +98,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     { href: "/data-ads", label: "Data Ads", icon: "table", count: counts.dataAds },
   ];
 
-  const scopeLabel = pathname.startsWith("/dashboard") && activeGroup ? activeGroup.name : activeCampaign?.name;
+  const scopeLabel = activeGroup
+    ? activeGroup.name
+    : activeCampaigns.length > 1
+      ? `${activeCampaigns.length} campaigns`
+      : activeCampaign?.name ?? "Select campaign";
 
   return (
     <div className="shell">
@@ -124,7 +127,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               {agencyNav.map((n) => navItem(n))}
               <div className="mt-4 rounded-xl border border-[#cfe0ff] bg-[#eef5ff] p-3 text-[11px] leading-[1.5] text-[#2b4a7a]">
                 <div className="mb-1 text-[9.5px] font-semibold uppercase tracking-[0.12em]">Assigned to you</div>
-                {brand?.name} · {activeCampaign?.name}
+                {brand?.name} · {activeCampaigns.length} selected campaign{activeCampaigns.length === 1 ? "" : "s"}
               </div>
             </>
           ) : (

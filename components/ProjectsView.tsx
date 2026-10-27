@@ -19,9 +19,10 @@ export function ProjectsView({ initialType }: { initialType?: ProjectType | "ALL
   const router = useRouter();
   const brandId = state.ui.brandId;
   const brand = state.brands.find((b) => b.id === brandId) ?? state.brands[0];
-  const campaign =
-    state.campaigns.find((c) => c.id === state.ui.campaignId) ??
-    state.campaigns.find((c) => c.brandId === brandId);
+  const selectedCampaigns = state.campaigns.filter(
+    (c) => c.brandId === brandId && state.ui.campaignIds.includes(c.id),
+  );
+  const singleCampaign = selectedCampaigns.length === 1 ? selectedCampaigns[0] : undefined;
   const [type, setType] = useState<ProjectType | "ALL">(initialType ?? "ALL");
   const [query, setQuery] = useState("");
   const [agency, setAgency] = useState("all");
@@ -30,9 +31,12 @@ export function ProjectsView({ initialType }: { initialType?: ProjectType | "ALL
   const scope = useMemo(
     () =>
       state.projects.filter(
-        (p) => p.brandId === brandId && p.campaignId === campaign?.id && (type === "ALL" || p.type === type),
+        (p) =>
+          p.brandId === brandId &&
+          state.ui.campaignIds.includes(p.campaignId) &&
+          (type === "ALL" || p.type === type),
       ),
-    [state.projects, brandId, campaign?.id, type],
+    [state.projects, brandId, state.ui.campaignIds, type],
   );
 
   const projects = scope
@@ -42,12 +46,17 @@ export function ProjectsView({ initialType }: { initialType?: ProjectType | "ALL
 
   const rows = scope.flatMap((p) => p.rows);
   const complete = scope.flatMap((p) => p.rows.map((r) => isRowComplete(r, TS_COLUMNS))).filter(Boolean).length;
-  const scraped = rows.filter((r) => r.scrape === "success").length;
   const withLink = rows.filter((r) => r.shortcode).length;
+  const dataAdsCount = state.dataAds.filter(
+    (d) => d.brandId === brandId && state.ui.campaignIds.includes(d.campaignId),
+  ).length;
 
   const counts = ORDER.reduce<Record<string, number>>((acc, t) => {
     acc[t] = state.projects.filter(
-      (p) => p.brandId === brandId && p.campaignId === campaign?.id && p.type === t,
+      (p) =>
+        p.brandId === brandId &&
+        state.ui.campaignIds.includes(p.campaignId) &&
+        p.type === t,
     ).length;
     return acc;
   }, {});
@@ -60,8 +69,18 @@ export function ProjectsView({ initialType }: { initialType?: ProjectType | "ALL
         title="Project list"
         sub={
           <>
-            Sheets for <b className="font-semibold text-[var(--ink-2)]">{campaign?.name}</b> at {brand.name}. Every sheet
-            publishes its own PM link; required columns are green, optional columns are blue.
+            {selectedCampaigns.length === 1 ? (
+              <>
+                Sheets for <b className="font-semibold text-[var(--ink-2)]">{selectedCampaigns[0].name}</b> at{" "}
+                {brand.name}.
+              </>
+            ) : (
+              <>
+                Sheets for <b className="font-semibold text-[var(--ink-2)]">{selectedCampaigns.length} selected campaigns</b>{" "}
+                at {brand.name}.
+              </>
+            )}{" "}
+            Every sheet publishes its own PM link; required columns are green, optional columns are blue.
           </>
         }
         actions={
@@ -70,7 +89,12 @@ export function ProjectsView({ initialType }: { initialType?: ProjectType | "ALL
               <Icon name="table" size={13} />
               Data Ads
             </button>
-            <button className="btn btn-dark" onClick={() => setOpenNew(true)}>
+            <button
+              className="btn btn-dark"
+              disabled={!singleCampaign}
+              title={singleCampaign ? "Create a project sheet" : "Select exactly one campaign to create a project"}
+              onClick={() => setOpenNew(true)}
+            >
               <Icon name="plus" size={13} />
               New project
             </button>
@@ -107,7 +131,11 @@ export function ProjectsView({ initialType }: { initialType?: ProjectType | "ALL
         </div>
 
         <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <MiniStat label="Sheets" value={String(scope.length)} hint={`${type === "ALL" ? "All types" : PROJECT_LABEL[type]} · ${campaign?.name}`} />
+          <MiniStat
+            label="Sheets"
+            value={String(scope.length)}
+            hint={`${type === "ALL" ? "All types" : PROJECT_LABEL[type]} · ${selectedCampaigns.length} campaign${selectedCampaigns.length === 1 ? "" : "s"}`}
+          />
           <MiniStat label="Rows collected" value={fmtInt(rows.length)} hint={`${withLink} rows carry a publish link`} />
           <MiniStat
             label="Complete rows"
@@ -115,11 +143,7 @@ export function ProjectsView({ initialType }: { initialType?: ProjectType | "ALL
             hint={`${rows.length - complete} rows missing required columns`}
             accent={complete === rows.length ? "ok" : "warn"}
           />
-          <MiniStat
-            label="Scrape success"
-            value={pct(rows.length ? scraped / rows.length : 0)}
-            hint={`${rows.length - scraped} links need attention`}
-          />
+          <MiniStat label="Data Ads" value={String(dataAdsCount)} hint="Spreadsheets in this scope" />
         </div>
 
         <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -169,7 +193,6 @@ export function ProjectsView({ initialType }: { initialType?: ProjectType | "ALL
                   <th>Agency</th>
                   <th className="num">Rows</th>
                   <th className="w-[150px]">Complete</th>
-                  <th className="w-[140px]">Scrape</th>
                   <th>Created</th>
                   <th>Last saved</th>
                   <th className="w-[70px]" />
@@ -177,8 +200,6 @@ export function ProjectsView({ initialType }: { initialType?: ProjectType | "ALL
               </thead>
               <tbody>
                 {projects.map((p) => {
-                  const linked = p.rows.filter((r) => r.shortcode).length;
-                  const ok = p.rows.filter((r) => r.scrape === "success").length;
                   const filled = p.rows.filter((r) => isRowComplete(r, TS_COLUMNS)).length;
                   const slug = p.pmLink.split("/pm/")[1] ?? p.id;
                   return (
@@ -207,14 +228,6 @@ export function ProjectsView({ initialType }: { initialType?: ProjectType | "ALL
                           />
                           <span className="w-9 shrink-0 text-right text-[10.5px] text-[var(--muted-2)]">
                             {filled}/{p.rows.length}
-                          </span>
-                        </div>
-                      </td>
-                      <td>
-                        <div className="flex items-center gap-2">
-                          <Bar value={p.rows.length ? ok / p.rows.length : 0} color="#12b76a" />
-                          <span className="w-9 shrink-0 text-right text-[10.5px] text-[var(--muted-2)]">
-                            {ok}/{p.rows.length}
                           </span>
                         </div>
                       </td>
@@ -295,8 +308,9 @@ function NewProjectModal({
   const brandId = state.ui.brandId;
   const brand = state.brands.find((b) => b.id === brandId) ?? state.brands[0];
   const campaign =
-    state.campaigns.find((c) => c.id === state.ui.campaignId) ??
-    state.campaigns.find((c) => c.brandId === brandId);
+    state.ui.campaignIds.length === 1
+      ? state.campaigns.find((c) => c.id === state.ui.campaignIds[0])
+      : undefined;
   const [type, setType] = useState<ProjectType>(defaultType);
   const [agency, setAgency] = useState(brand?.agencies[0] ?? "");
 
@@ -337,7 +351,7 @@ function NewProjectModal({
             {brand.name}
           </span>
           <span className="chip !h-[28px] !px-2.5">
-            <span className="dot" style={{ background: campaign?.status === "live" ? "#12b76a" : "#94a3b8" }} />
+            <span className="dot" style={{ background: "#2f6bff" }} />
             {campaign?.name ?? "—"}
           </span>
           <span className="ml-auto text-[10px] text-[var(--muted-2)]">fixed by the active scope</span>

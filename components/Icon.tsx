@@ -196,6 +196,12 @@ const P = {
       <path d="M13.5 7.5l3 3" />
     </>
   ),
+  undo: (
+    <>
+      <path d="M9 14L4 9l5-5" />
+      <path d="M4 9h9.5a6.5 6.5 0 0 1 0 13H11" />
+    </>
+  ),
 } as const;
 
 export type IconName = keyof typeof P;

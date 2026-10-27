@@ -1,4 +1,4 @@
-import type { ProjectType, SheetRow } from "./types";
+import type { ColumnConfig, ProjectType, SheetRow } from "./types";
 import { cleanPublishLink, extractShortcode } from "./shortcode";
 import { uid } from "./utils";
 
@@ -16,7 +16,7 @@ export const TS_COLUMNS: ColumnMeta[] = [
   { key: "name", label: "Name", width: 170, required: true },
   { key: "linkAccount", label: "Link to Account", width: 250, type: "url", required: true },
   { key: "followers", label: "Followers", width: 110, type: "number", required: true },
-  { key: "publishLink", label: "Publish Link", width: 300, type: "url" },
+  { key: "publishLink", label: "Publish Link", width: 300, type: "url", required: true },
   { key: "niche", label: "Niche", width: 120 },
   { key: "sowItem", label: "SOW Item", width: 190 },
   { key: "actualPublishDate", label: "Actual Publish Date", width: 150, type: "date" },
@@ -62,6 +62,35 @@ export const AUTOMATION_COLUMNS: { key: string; label: string; width: number; re
 
 /** Every project sheet uses the tracker sheet format (KOL Ads included). */
 export const columnsFor = (_type: ProjectType) => TS_COLUMNS;
+
+export type SheetKind = "TS" | "TL";
+
+export function defaultColumns(kind: SheetKind): ColumnMeta[] {
+  return kind === "TS" ? TS_COLUMNS : TL_COLUMNS;
+}
+
+export function defaultColumnConfig(kind: SheetKind): ColumnConfig[] {
+  return defaultColumns(kind).map((c) => ({ key: c.key, required: Boolean(c.required) }));
+}
+
+/** Resolve a saved layout (order + required flags) against the known columns. */
+export function resolveColumns(kind: SheetKind, config?: ColumnConfig[]): ColumnMeta[] {
+  const base = defaultColumns(kind);
+  if (!config || config.length === 0) return base;
+  const byKey = new Map(base.map((c) => [c.key, c]));
+  const out: ColumnMeta[] = [];
+  const seen = new Set<string>();
+  for (const item of config) {
+    const meta = byKey.get(item.key);
+    if (!meta || seen.has(item.key)) continue;
+    seen.add(item.key);
+    out.push({ ...meta, required: Boolean(item.required) });
+  }
+  for (const meta of base) {
+    if (!seen.has(meta.key)) out.push(meta);
+  }
+  return out;
+}
 
 export function emptySheetRow(id?: string): SheetRow {
   return {

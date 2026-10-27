@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { cdn, useCdn } from "@/lib/store";
 import { download, fmtInt, pct, toCSV } from "@/lib/utils";
 import {
@@ -30,6 +30,8 @@ export default function DataAdsDetailPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [selected, setSelected] = useState<SheetRow | null>(null);
   const [saving, setSaving] = useState(false);
+  const [canUndo, setCanUndo] = useState(false);
+  const history = useRef<SheetRow[][]>([]);
   const [renaming, setRenaming] = useState<{ id: string; value: string } | null>(null);
   const gridRef = useRef<SheetGridHandle>(null);
 
@@ -77,13 +79,30 @@ export default function DataAdsDetailPage() {
   const complete = rows.filter((r) => isRowComplete(r, columns)).length;
   const incomplete = rows.filter((r) => !isRowEmpty(r, columns) && missingRequired(r, columns).length > 0).length;
   const linked = rows.filter((r) => r.shortcode).length;
-  const ok = rows.filter((r) => r.scrape === "success").length;
   const totalRows = dataAds.sheets.reduce((sum, s) => sum + s.rows.length, 0);
 
-  function setRows(next: SheetRow[]) {
+  function applyRows(next: SheetRow[]) {
     if (!sheet) return;
+    history.current.push(rows);
+    if (history.current.length > 40) history.current.shift();
+    setCanUndo(true);
     cdn.setDataAdsRows(dataAds!.id, sheet.id, next);
   }
+
+  function undo() {
+    const prev = history.current.pop();
+    setCanUndo(history.current.length > 0);
+    if (prev && sheet) cdn.setDataAdsRows(dataAds!.id, sheet.id, prev);
+  }
+
+  function deleteRow(row: SheetRow) {
+    applyRows(rows.filter((r) => r.id !== row.id));
+  }
+
+  useEffect(() => {
+    history.current = [];
+    setCanUndo(false);
+  }, [sheet?.id]);
 
   function removeDuplicates() {
     if (!sheet) return;
@@ -95,12 +114,12 @@ export default function DataAdsDetailPage() {
       seen.add(k);
       return true;
     });
-    setRows(kept);
+    applyRows(kept);
     toast(`${rows.length - kept.length} duplicate row(s) removed`);
   }
 
   function clearEmpty() {
-    setRows(rows.filter((r) => !isRowEmpty(r, columns)));
+    applyRows(rows.filter((r) => !isRowEmpty(r, columns)));
     toast("Empty rows cleared");
   }
 
@@ -147,7 +166,7 @@ export default function DataAdsDetailPage() {
       row.shortcode = derived.shortcode;
       return row;
     });
-    setRows([...rows, ...mapped]);
+    applyRows([...rows, ...mapped]);
   }
 
   function addSheet() {
@@ -289,6 +308,10 @@ export default function DataAdsDetailPage() {
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-2">
+          <button className="btn" onClick={undo} disabled={!canUndo} title="Undo last change (Ctrl+Z)">
+            <Icon name="undo" size={13} />
+            Undo
+          </button>
           <button className="btn" onClick={pasteFromClipboard}>
             <Icon name="copy" size={13} />
             Paste block
@@ -297,7 +320,7 @@ export default function DataAdsDetailPage() {
             <Icon name="upload" size={13} />
             Import CSV
           </button>
-          <button className="btn" onClick={() => setRows([...rows, emptySheetRow()])}>
+          <button className="btn" onClick={() => applyRows([...rows, emptySheetRow()])}>
             <Icon name="plus" size={13} />
             Add row
           </button>
@@ -324,18 +347,16 @@ export default function DataAdsDetailPage() {
             ref={gridRef}
             columns={columns}
             rows={rows}
-            onChange={setRows}
+            onChange={applyRows}
             derive={deriveSheetRow}
             makeRow={emptySheetRow}
             duplicates={dupSet}
             dedupeKey={sheetDedupeKey}
             onSelectRow={(row) => setSelected(row)}
+            onUndo={undo}
+            onDeleteRow={deleteRow}
             marker={(r) =>
-              !isRowEmpty(r, columns) && missingRequired(r, columns).length > 0
-                ? "bad"
-                : r.scrape === "failed"
-                  ? "warn"
-                  : null
+              !isRowEmpty(r, columns) && missingRequired(r, columns).length > 0 ? "bad" : null
             }
             emptyHint="Paste the tracker list block here — one sheet per batch/seat."
           />
@@ -360,14 +381,6 @@ export default function DataAdsDetailPage() {
             <div className="mono text-[11px] font-medium text-[var(--blue-deep)]">{selected?.shortcode || "—"}</div>
           </div>
           <div>
-            <div className="eyebrow-dim !text-[8.5px]">Scrape</div>
-            {selected?.linkPost ? (
-              <StatusBadge status={selected.scrape} />
-            ) : (
-              <span className="text-[11px] text-[var(--muted-2)]">—</span>
-            )}
-          </div>
-          <div>
             <div className="eyebrow-dim !text-[8.5px]">Missing required</div>
             <div className="text-[11px] font-medium">
               {selected && !isRowEmpty(selected, columns) ? missingRequired(selected, columns).join(", ") || "—" : "—"}
@@ -375,7 +388,7 @@ export default function DataAdsDetailPage() {
           </div>
           <div className="ml-auto flex items-center gap-2 text-[10px] text-[var(--muted-2)]">
             <CopyButton value={`/data-ads/${dataAds.id}`} label="Link" compact />
-            <span>Select a row to inspect</span>
+            <span>Ctrl+Z to undo · trash icon removes a row</span>
           </div>
         </div>
 

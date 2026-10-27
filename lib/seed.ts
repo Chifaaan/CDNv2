@@ -16,7 +16,7 @@ import { cleanPublishLink } from "./shortcode";
 import { slugify } from "./utils";
 
 export const STORAGE_KEY = "cdn-v2.state.v1";
-export const STATE_VERSION = 10;
+export const STATE_VERSION = 11;
 
 const BASE = new Date("2026-10-27T09:00:00.000Z");
 
@@ -236,18 +236,14 @@ function buildBrandsAndCampaigns() {
     brands.push({ id: b.id, name: b.name, code: b.code, initials: b.initials, hue: b.hue, agencies: b.agencies });
     for (let i = 0; i < b.campaignCount; i++) {
       const type = TYPE_ROTATION[i % TYPE_ROTATION.length];
-      const status = i >= b.campaignCount - 2 ? (i === b.campaignCount - 1 ? "scheduled" : "ended") : "live";
-      const start = status === "ended" ? iso(150) : status === "scheduled" ? iso(-7) : iso(58 - (i % 4) * 7);
-      const end = status === "ended" ? iso(60) : status === "scheduled" ? iso(-45) : iso(12 + (i % 3) * 4);
       campaigns.push({
         id: `cmp_${b.id}_${i}`,
         brandId: b.id,
         name: THEMES[i % THEMES.length],
         type,
         agency: b.agencies[i % b.agencies.length],
-        status,
-        start,
-        end,
+        start: iso(58 - (i % 4) * 7),
+        end: iso(12 + (i % 3) * 4),
         metrics: metricsFor(type),
         series: seriesFor(type),
       });
@@ -292,8 +288,7 @@ function tsRow(prefix: string, idx: number): SheetRow {
   const handle = pick(HANDLES);
   const useTikTok = rnd() > 0.5;
   const code = useTikTok ? ttCode() : igCode();
-  const blank = idx > 5 && rnd() > 0.85;
-  const link = blank ? "" : useTikTok ? ttLink(handle, code) : igLink(code);
+  const link = useTikTok ? ttLink(handle, code) : igLink(code);
   const base = emptyRow(`${prefix}_r${idx}`);
   return {
     ...base,
@@ -303,13 +298,13 @@ function tsRow(prefix: string, idx: number): SheetRow {
     publishLink: link,
     niche: pick(NICHES),
     sowItem: pick(SOW_ITEMS),
-    actualPublishDate: blank ? "" : iso(int(10, 80)),
-    proofLink: blank ? "" : driveLink(),
-    insightsLink: blank ? "" : driveLink(),
-    sixSecondViews: blank ? "" : `${int(12, 62)}%`,
+    actualPublishDate: iso(int(10, 80)),
+    proofLink: driveLink(),
+    insightsLink: driveLink(),
+    sixSecondViews: `${int(12, 62)}%`,
     cleanLink: cleanPublishLink(link),
-    shortcode: link ? code : "",
-    scrape: blank ? "pending" : rnd() > 0.9 ? (rnd() > 0.6 ? "failed" : "pending") : "success",
+    shortcode: code,
+    scrape: rnd() > 0.9 ? (rnd() > 0.6 ? "failed" : "pending") : "success",
   };
 }
 
@@ -440,11 +435,10 @@ function buildGroups(campaigns: Campaign[]): CampaignGroup[] {
   const names = ["Q3 Always On", "Ramadan 2026", "Payday Cluster", "Launch Wave"];
 
   for (const [brandId, list] of byBrand) {
-    const live = list.filter((c) => c.status === "live");
-    if (live.length < 2) continue;
+    if (list.length < 2) continue;
     const count = brandId === "zentara" ? 2 : 1;
     for (let i = 0; i < count; i++) {
-      const members = live.slice(i, i + (brandId === "zentara" && i === 0 ? 3 : 2));
+      const members = list.slice(i, i + (brandId === "zentara" && i === 0 ? 3 : 2));
       if (members.length < 2) continue;
       groups.push({
         id: `grp_${brandId}_${i}`,
@@ -545,7 +539,7 @@ export function createSeed(): State {
     ui: {
       role: "spektrum",
       brandId: "zentara",
-      campaignId: "cmp_zentara_0",
+      campaignIds: ["cmp_zentara_0"],
       groupId: null,
       sidebarCollapsed: false,
       lastSync: new Date(BASE.getTime() - 42 * 60_000).toISOString(),

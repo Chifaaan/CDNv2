@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { cdn, useCdn } from "@/lib/store";
-import { fmtCompact, fmtInt, pct, relTime } from "@/lib/utils";
+import type { Campaign } from "@/lib/types";
+import { fmtInt, pct, relTime } from "@/lib/utils";
 import { Icon } from "@/components/Icon";
 import { BrandAvatar, EmptyState, Field, Modal, PageHero, SectionHead, Select, StatusBadge } from "@/components/ui";
 import { toast } from "@/components/Toast";
@@ -15,8 +16,9 @@ export default function DataAdsPage() {
   const brandId = state.ui.brandId;
   const brand = state.brands.find((b) => b.id === brandId) ?? state.brands[0];
   const campaign =
-    state.campaigns.find((c) => c.id === state.ui.campaignId) ??
+    state.campaigns.find((c) => state.ui.campaignIds.includes(c.id)) ??
     state.campaigns.find((c) => c.brandId === brandId);
+  const selectedCampaigns = state.campaigns.filter((c) => state.ui.campaignIds.includes(c.id));
   const [openNew, setOpenNew] = useState(false);
   const [query, setQuery] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
@@ -24,12 +26,14 @@ export default function DataAdsPage() {
   const containers = useMemo(
     () =>
       state.dataAds
-        .filter((d) => d.brandId === brandId && d.campaignId === campaign?.id)
+        .filter((d) => d.brandId === brandId && state.ui.campaignIds.includes(d.campaignId))
         .filter((d) => d.name.toLowerCase().includes(query.toLowerCase())),
-    [state.dataAds, brandId, campaign?.id, query],
+    [state.dataAds, brandId, state.ui.campaignIds, query],
   );
 
-  const all = state.dataAds.filter((d) => d.brandId === brandId && d.campaignId === campaign?.id);
+  const all = state.dataAds.filter(
+    (d) => d.brandId === brandId && state.ui.campaignIds.includes(d.campaignId),
+  );
   const rows = all.flatMap((d) => d.sheets.flatMap((s) => s.rows));
   const linked = rows.filter((r) => r.shortcode).length;
   const sheets = all.reduce((sum, d) => sum + d.sheets.length, 0);
@@ -42,8 +46,11 @@ export default function DataAdsPage() {
         title="Data Ads"
         sub={
           <>
-            Tracker-list spreadsheets for <b className="font-semibold text-[var(--ink-2)]">{campaign?.name}</b>. One
-            spreadsheet can hold many sheets — every sheet uses the same tracker-list columns.
+            Tracker-list spreadsheets for{" "}
+            <b className="font-semibold text-[var(--ink-2)]">
+              {selectedCampaigns.length === 1 ? selectedCampaigns[0].name : `${selectedCampaigns.length} selected campaigns`}
+            </b>
+            . One spreadsheet can hold many sheets — every sheet uses the same tracker-list columns.
           </>
         }
         actions={
@@ -77,7 +84,7 @@ export default function DataAdsPage() {
             />
           </div>
           <span className="ml-auto text-[10.5px] text-[var(--muted-2)]">
-            Scoped to {brand.name} · {campaign?.name}
+            Scoped to {brand.name} · {selectedCampaigns.length} campaign{selectedCampaigns.length === 1 ? "" : "s"}
           </span>
         </div>
 
@@ -163,7 +170,11 @@ export default function DataAdsPage() {
         </div>
       </div>
 
-      <NewDataAdsModal open={openNew} onClose={() => setOpenNew(false)} campaignId={campaign?.id ?? ""} />
+      <NewDataAdsModal
+        open={openNew}
+        onClose={() => setOpenNew(false)}
+        campaigns={selectedCampaigns}
+      />
 
       <Modal
         open={Boolean(target)}
@@ -215,23 +226,24 @@ function MiniStat({ label, value, hint, accent }: { label: string; value: string
 function NewDataAdsModal({
   open,
   onClose,
-  campaignId,
+  campaigns,
 }: {
   open: boolean;
   onClose: () => void;
-  campaignId: string;
+  campaigns: Campaign[];
 }) {
   const state = useCdn();
   const router = useRouter();
   const brandId = state.ui.brandId;
   const brand = state.brands.find((b) => b.id === brandId) ?? state.brands[0];
+  const [campaignId, setCampaignId] = useState(campaigns[0]?.id ?? "");
   const campaign = state.campaigns.find((c) => c.id === campaignId);
   const [name, setName] = useState("");
   const [agency, setAgency] = useState(brand?.agencies[0] ?? "");
 
   function submit() {
     if (!name.trim() || !campaignId) {
-      toast("Name is required", "err");
+      toast("Name and campaign are required", "err");
       return;
     }
     const created = cdn.addDataAds({ brandId, campaignId, name: name.trim(), agency });
@@ -265,11 +277,22 @@ function NewDataAdsModal({
             <BrandAvatar brand={brand} size={16} radius={4} />
             {brand.name}
           </span>
-          <span className="chip !h-[28px] !px-2.5">
-            <span className="dot" style={{ background: campaign?.status === "live" ? "#12b76a" : "#94a3b8" }} />
-            {campaign?.name ?? "—"}
+          {campaigns.length > 1 ? (
+            <Select
+              value={campaignId}
+              onChange={setCampaignId}
+              options={campaigns.map((c) => ({ value: c.id, label: c.name }))}
+              className="!h-[28px]"
+            />
+          ) : (
+            <span className="chip !h-[28px] !px-2.5">
+              <span className="dot" style={{ background: "#2f6bff" }} />
+              {campaign?.name ?? "—"}
+            </span>
+          )}
+          <span className="ml-auto text-[10px] text-[var(--muted-2)]">
+            {campaigns.length > 1 ? "choose one of the selected campaigns" : "fixed by the active scope"}
           </span>
-          <span className="ml-auto text-[10px] text-[var(--muted-2)]">fixed by the active scope</span>
         </div>
 
         <Field label="Spreadsheet name" hint="For example: Set 667 Data Ads, Boost Data Ads.">
