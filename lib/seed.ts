@@ -1,12 +1,16 @@
 import type {
+  AdMaterial,
+  Attendee,
   AutomationRow,
   Brand,
   Campaign,
   CampaignGroup,
   CampaignMetrics,
   CampaignType,
+  ColumnConfig,
   DataAds,
   DataAdsSheet,
+  PerformancePost,
   Project,
   ProjectType,
   SheetRow,
@@ -16,7 +20,7 @@ import { cleanPublishLink } from "./shortcode";
 import { slugify } from "./utils";
 
 export const STORAGE_KEY = "cdn-v2.state.v1";
-export const STATE_VERSION = 16;
+export const STATE_VERSION = 18;
 
 const BASE = new Date("2026-10-27T09:00:00.000Z");
 
@@ -577,6 +581,130 @@ function buildAutomation(brands: Brand[], campaigns: Campaign[], projects: Proje
   return rows;
 }
 
+const ATTENDEE_NAMES = [
+  "Andi Jamero Anindhita",
+  "Meidta Lilianti",
+  "Sandy Muhammad Rifqi",
+  "Dini Oktaviani",
+  "Aulia Nur Fadilah",
+  "Annisa Suryani",
+  "Indah Paulina",
+  "Irene Syabilla Alifia",
+  "Sukoco Bayu",
+  "Tiara Anissa Wewengkang",
+  "Andrean Megista Persada",
+  "Nindi Rahmi",
+  "Rizky Pratama",
+  "Nadia Kusuma",
+  "Bagas Saputra",
+  "Salsabila Putri",
+];
+
+function buildPerformance(brands: Brand[], campaigns: Campaign[]) {
+  const posts: PerformancePost[] = [];
+  const adMaterials: AdMaterial[] = [];
+  const attendees: Attendee[] = [];
+
+  const byBrand = new Map<string, Campaign[]>();
+  for (const c of campaigns) {
+    if (!byBrand.has(c.brandId)) byBrand.set(c.brandId, []);
+    byBrand.get(c.brandId)!.push(c);
+  }
+
+  const makePost = (brandId: string, campaign: Campaign, effort: "KOL" | "CONNECTOR", idx: number) => {
+    const boosted = rnd() > (effort === "KOL" ? 0.5 : 0.65);
+    const views =
+      effort === "KOL"
+        ? int(120_000, 7_600_000)
+        : int(30_000, 16_000_000);
+    const organic = boosted ? Math.round(views * (0.14 + rnd() * 0.1)) : views;
+    const likes = Math.round(views * (0.001 + rnd() * 0.03));
+    const comments = Math.round(likes * (0.01 + rnd() * 0.2));
+    const handle = `${pick(HANDLES).replace(/\./g, "")}${int(1, 99)}`;
+    posts.push({
+      id: `post_${brandId}_${campaign.id}_${effort}_${idx}`,
+      brandId,
+      campaignId: campaign.id,
+      effort,
+      platform: rnd() > 0.25 ? "TikTok" : "Instagram",
+      account: `@${handle}`,
+      agency: pick(brands.find((b) => b.id === brandId)!.agencies),
+      tier: effort === "KOL" ? pick(["MEGA", "MICRO", "—"]) : "—",
+      views,
+      organic,
+      paid: views - organic,
+      sixthViews: Math.round(views * (0.25 + rnd() * 0.25)),
+      likes,
+      comments,
+      er: views ? (likes + comments) / views : 0,
+      boosted,
+      postedAt: new Date(BASE.getTime() - int(0, 88) * 86_400_000 - int(0, 20) * 3_600_000).toISOString(),
+    });
+  };
+
+  const makeAd = (brandId: string, campaign: Campaign, idx: number) => {
+    const group = int(10, 40);
+    const views = int(40_000, 16_000_000);
+    const impressions = Math.round(views * (1.02 + rnd() * 0.12));
+    const reach = Math.round(impressions * (0.5 + rnd() * 0.4));
+    const clicks = Math.round(impressions * (0.002 + rnd() * 0.012));
+    adMaterials.push({
+      id: `adm_${brandId}_${campaign.id}_${idx}`,
+      brandId,
+      campaignId: campaign.id,
+      adName: `KOL_${group}_${pick(["Spectrum", "Aries", "BION", "Dewi"])}_${int(10, 70)}s`,
+      group: `KOL_${group}`,
+      views,
+      impressions,
+      reach,
+      spend: int(1_000_000, 45_000_000),
+      clicks,
+      ctr: impressions ? clicks / impressions : 0,
+      lastSync: new Date(BASE.getTime() - int(0, 72) * 3_600_000).toISOString(),
+      videoViews: views,
+      secondViews: Math.round(views * 0.95),
+      sixthViews: Math.round(views * (0.6 + rnd() * 0.3)),
+      at25: Math.round(views * (0.3 + rnd() * 0.3)),
+      at50: Math.round(views * (0.12 + rnd() * 0.2)),
+      at75: Math.round(views * (0.04 + rnd() * 0.12)),
+      at100: Math.round(views * (0.01 + rnd() * 0.05)),
+    });
+  };
+
+  const makeAttendee = (brandId: string, campaign: Campaign, idx: number) => {
+    const status = rnd() > 0.12 ? "complete" : "in_process";
+    attendees.push({
+      id: `att_${brandId}_${campaign.id}_${idx}`,
+      brandId,
+      campaignId: campaign.id,
+      name: ATTENDEE_NAMES[(idx + brandId.length) % ATTENDEE_NAMES.length],
+      tier: rnd() > 0.2 ? "STANDARD" : "VIP",
+      checkedInAt: new Date(BASE.getTime() - int(0, 40) * 86_400_000 - int(0, 23) * 3_600_000).toISOString(),
+      referral: rnd() > 0.6 ? `https://ref.spektrum.id/${campaign.id.slice(-6)}` : "",
+      photos: 2,
+      amount: int(20, 60) * 1000,
+      status,
+      invited: rnd() > 0.7,
+    });
+  };
+
+  for (const [brandId, list] of byBrand) {
+    list.forEach((campaign, ci) => {
+      const full = ci === 0;
+      const kolCount = full ? 26 : 4;
+      const connCount = full ? 60 : 8;
+      const adsCount = full ? 45 : 5;
+      const attendCount = full ? 56 : 6;
+      for (let i = 0; i < kolCount; i++) makePost(brandId, campaign, "KOL", i);
+      for (let i = 0; i < connCount; i++) makePost(brandId, campaign, "CONNECTOR", i);
+      for (let i = 0; i < adsCount; i++) makeAd(brandId, campaign, i);
+      for (let i = 0; i < attendCount; i++) makeAttendee(brandId, campaign, i);
+    });
+  }
+
+  return { posts, adMaterials, attendees };
+}
+
 export function createSeed(): State {
   rnd = mulberry32(20261027);
 
@@ -585,6 +713,13 @@ export function createSeed(): State {
   const projects = buildProjects(campaigns);
   const dataAds = buildDataAds(campaigns);
   const automation = buildAutomation(brands, campaigns, projects);
+  const { posts, adMaterials, attendees } = buildPerformance(brands, campaigns);
+  const automationSavedAt: Record<string, string> = {};
+  const automationColumns: Record<string, ColumnConfig[]> = {};
+  for (const b of brands) {
+    automationSavedAt[b.id] = isoTime(int(1, 36));
+    automationColumns[b.id] = [];
+  }
 
   return {
     version: STATE_VERSION,
@@ -594,6 +729,11 @@ export function createSeed(): State {
     projects,
     dataAds,
     automation,
+    automationSavedAt,
+    automationColumns,
+    posts,
+    adMaterials,
+    attendees,
     ui: {
       role: "spectrum",
       brandId: "zentara",

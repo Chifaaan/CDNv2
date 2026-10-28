@@ -166,6 +166,64 @@ export interface AutomationRow {
   campaignId: string | null;
 }
 
+/** Content performance row for KOL and Connector pages. */
+export interface PerformancePost {
+  id: string;
+  brandId: string;
+  campaignId: string;
+  effort: "KOL" | "CONNECTOR";
+  platform: "TikTok" | "Instagram";
+  account: string;
+  agency: string;
+  tier: string;
+  views: number;
+  organic: number;
+  paid: number;
+  sixthViews: number;
+  likes: number;
+  comments: number;
+  er: number;
+  boosted: boolean;
+  postedAt: string;
+}
+
+/** KOL Ads material row. */
+export interface AdMaterial {
+  id: string;
+  brandId: string;
+  campaignId: string;
+  adName: string;
+  group: string;
+  views: number;
+  impressions: number;
+  reach: number;
+  spend: number;
+  clicks: number;
+  ctr: number;
+  lastSync: string;
+  videoViews: number;
+  secondViews: number;
+  sixthViews: number;
+  at25: number;
+  at50: number;
+  at75: number;
+  at100: number;
+}
+
+export interface Attendee {
+  id: string;
+  brandId: string;
+  campaignId: string;
+  name: string;
+  tier: string;
+  checkedInAt: string;
+  referral: string;
+  photos: number;
+  amount: number;
+  status: "complete" | "in_process";
+  invited: boolean;
+}
+
 export interface UIState {
   role: Role;
   brandId: string;
@@ -187,6 +245,11 @@ export interface State {
   projects: Project[];
   dataAds: DataAds[];
   automation: AutomationRow[];
+  posts: PerformancePost[];
+  adMaterials: AdMaterial[];
+  attendees: Attendee[];
+  automationSavedAt: Record<string, string>;
+  automationColumns: Record<string, ColumnConfig[]>;
   ui: UIState;
 }
 

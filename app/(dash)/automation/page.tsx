@@ -3,12 +3,13 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { cdn, useCdn } from "@/lib/store";
 import { download, fmtCompact, fmtInt, toCSV } from "@/lib/utils";
-import { AUTOMATION_COLUMNS } from "@/lib/sheet";
+import { AUTOMATION_DEFAULTS, resolveColumns } from "@/lib/sheet";
 import type { AutomationRow } from "@/lib/types";
 import { Icon } from "@/components/Icon";
-import { PageHero, SectionHead } from "@/components/ui";
+import { PageHero, SavedIndicator } from "@/components/ui";
 import { SheetGrid, type SheetColumn, type SheetGridHandle } from "@/components/SheetGrid";
 import { ImportDialog } from "@/components/ImportDialog";
+import { ColumnSettingsModal } from "@/components/ColumnSettingsModal";
 import { toast } from "@/components/Toast";
 
 const NUM_KEYS = new Set([
@@ -48,27 +49,40 @@ function emptyAutomationRow(brandId: string): AutomationRow {
   };
 }
 
-const COLUMN_META: SheetColumn<AutomationRow>[] = AUTOMATION_COLUMNS.map((c) => ({
-  key: c.key,
-  label: c.label,
-  width: c.width,
-  required: c.required,
-  type: c.numeric ? "number" : c.key === "date" ? "date" : "text",
-}));
-
 export default function AutomationPage() {
   const state = useCdn();
   const brandId = state.ui.brandId;
   const brand = state.brands.find((b) => b.id === brandId) ?? state.brands[0];
   const [importOpen, setImportOpen] = useState(false);
+  const [columnsOpen, setColumnsOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [canUndo, setCanUndo] = useState(false);
+  const history = useRef<AutomationRow[][]>([]);
   const gridRef = useRef<SheetGridHandle>(null);
 
   const rows = useMemo(() => state.automation.filter((r) => r.brandId === brandId), [state.automation, brandId]);
   const makeRow = useCallback(() => emptyAutomationRow(brandId), [brandId]);
 
+  const columns = useMemo(
+    () => resolveColumns(AUTOMATION_DEFAULTS, state.automationColumns?.[brandId]),
+    [state.automationColumns, brandId],
+  );
+  const gridColumns: SheetColumn<AutomationRow>[] = useMemo(
+    () =>
+      columns.map((c) => ({
+        key: c.key,
+        label: c.label,
+        width: c.width,
+        required: c.required,
+        type: c.type,
+      })),
+    [columns],
+  );
+
   const impressions = rows.reduce((a, r) => a + (Number(r.impressions) || 0), 0);
   const reach = rows.reduce((a, r) => a + (Number(r.reach) || 0), 0);
   const sixth = rows.reduce((a, r) => a + (Number(r.sixthViews) || 0), 0);
+  const savedAt = state.automationSavedAt?.[brandId] ?? state.ui.lastSync;
 
   const dupSet = useMemo(() => {
     const seen = new Map<string, number>();
@@ -81,21 +95,35 @@ export default function AutomationPage() {
     );
   }, [rows]);
 
-  function setRows(next: AutomationRow[]) {
+  function commitRows(next: AutomationRow[]) {
     let i = 0;
     const merged = state.automation.map((r) => (r.brandId === brandId ? next[i++] ?? r : r));
-    cdn.setAutomationRows(merged);
+    cdn.setAutomationRows(merged, brandId);
+  }
+
+  function applyRows(next: AutomationRow[]) {
+    history.current.push(rows);
+    if (history.current.length > 40) history.current.shift();
+    setCanUndo(true);
+    commitRows(next);
+  }
+
+  function undo() {
+    const prev = history.current.pop();
+    setCanUndo(history.current.length > 0);
+    if (prev) commitRows(prev);
+  }
+
+  function deleteRow(row: AutomationRow) {
+    applyRows(rows.filter((r) => r.id !== row.id));
   }
 
   function derive(row: AutomationRow, key: string, value: string): AutomationRow {
-    if (key === "linkPost") {
-      return { ...row, linkPost: value };
-    }
     if (NUM_KEYS.has(key)) {
       const n = Number(String(value).replace(/[^\d.-]/g, ""));
       return { ...row, [key]: Number.isFinite(n) ? n : 0 };
     }
-    return row;
+    return { ...row, [key]: value } as AutomationRow;
   }
 
   async function pasteFromClipboard() {
@@ -113,12 +141,23 @@ export default function AutomationPage() {
     }
   }
 
+  function save() {
+    setSaving(true);
+    cdn.saveAutomation(brandId);
+    setTimeout(() => {
+      setSaving(false);
+      toast("Saved");
+    }, 350);
+  }
+
   function exportCsv() {
     download(
       `automation-${brandId}.csv`,
       toCSV(
-        AUTOMATION_COLUMNS.map((c) => c.label),
-        rows.map((r) => AUTOMATION_COLUMNS.map((c) => String((r as unknown as Record<string, string | number>)[c.key] ?? ""))),
+        columns.map((c) => c.label),
+        rows.map((r) =>
+          columns.map((c) => String((r as unknown as Record<string, string | number>)[c.key] ?? "")),
+        ),
       ),
     );
     toast("Automation rows exported as CSV");
@@ -127,9 +166,9 @@ export default function AutomationPage() {
   function importRows(raw: Record<string, string>[]) {
     const mapped: AutomationRow[] = raw.map((r) => {
       const row = { ...emptyAutomationRow(brandId) };
-      AUTOMATION_COLUMNS.forEach((c) => {
+      columns.forEach((c) => {
         const v = r[c.key] ?? "";
-        if (c.numeric) {
+        if (NUM_KEYS.has(c.key)) {
           const n = Number(String(v).replace(/[^\d.-]/g, ""));
           (row as unknown as Record<string, string | number>)[c.key] = Number.isFinite(n) ? n : 0;
         } else {
@@ -138,7 +177,7 @@ export default function AutomationPage() {
       });
       return row;
     });
-    setRows([...rows, ...mapped]);
+    applyRows([...rows, ...mapped]);
   }
 
   return (
@@ -147,10 +186,14 @@ export default function AutomationPage() {
         eyebrow="Automation link · Brand level"
         title="Automation link"
         sub={
-          <>
-            The full automation export for <b className="font-semibold text-[var(--ink-2)]">{brand.name}</b> lives here as a
-            spreadsheet. Paste the export as-is — 13 columns in the original order.
-          </>
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span>
+              The full automation export for <b className="font-semibold text-[var(--ink-2)]">{brand.name}</b>.
+            </span>
+            <span className="text-[var(--muted-2)]">·</span>
+            <span>{fmtInt(rows.length)} rows</span>
+            <SavedIndicator savedAt={savedAt} className="ml-1" />
+          </span>
         }
         actions={
           <>
@@ -158,9 +201,13 @@ export default function AutomationPage() {
               <Icon name="download" size={13} />
               Export
             </button>
-            <button className="btn btn-dark" onClick={() => setImportOpen(true)}>
+            <button className="btn" onClick={() => setImportOpen(true)}>
               <Icon name="upload" size={13} />
               Import
+            </button>
+            <button className="btn btn-dark" onClick={save} disabled={saving}>
+              <Icon name="check" size={13} className={saving ? "spin" : ""} />
+              {saving ? "Saving…" : "Save"}
             </button>
           </>
         }
@@ -175,6 +222,14 @@ export default function AutomationPage() {
         </div>
 
         <div className="mt-5 flex flex-wrap items-center gap-2">
+          <button className="btn" onClick={undo} disabled={!canUndo} title="Undo last change (Ctrl+Z)">
+            <Icon name="undo" size={13} />
+            Undo
+          </button>
+          <button className="btn" onClick={() => setColumnsOpen(true)} title="Reorder columns and set required fields">
+            <Icon name="list" size={13} />
+            Columns
+          </button>
           <button className="btn" onClick={pasteFromClipboard}>
             <Icon name="copy" size={13} />
             Paste block
@@ -183,7 +238,7 @@ export default function AutomationPage() {
             <Icon name="upload" size={13} />
             Import CSV
           </button>
-          <button className="btn" onClick={() => setRows([...rows, emptyAutomationRow(brandId)])}>
+          <button className="btn" onClick={() => applyRows([...rows, emptyAutomationRow(brandId)])}>
             <Icon name="plus" size={13} />
             Add row
           </button>
@@ -197,7 +252,7 @@ export default function AutomationPage() {
                 seen.add(k);
                 return true;
               });
-              setRows(kept);
+              applyRows(kept);
               toast(`${rows.length - kept.length} duplicate row(s) removed`);
             }}
           >
@@ -218,13 +273,15 @@ export default function AutomationPage() {
         <div className="mt-3">
           <SheetGrid<AutomationRow>
             ref={gridRef}
-            columns={COLUMN_META}
+            columns={gridColumns}
             rows={rows}
-            onChange={setRows}
+            onChange={applyRows}
             derive={derive}
             makeRow={makeRow}
             duplicates={dupSet}
             dedupeKey={(r) => `${r.campaign}|${r.ads}|${r.date}`}
+            onUndo={undo}
+            onDeleteRow={deleteRow}
             emptyHint="Paste the automation export here — columns match the original file."
           />
         </div>
@@ -233,7 +290,7 @@ export default function AutomationPage() {
           <Icon name="info" size={14} className="shrink-0" />
           <span>
             This sheet mirrors the raw automation export: Campaign, Ads, Date and the performance metrics. Paste a block
-            or import the CSV as it is.
+            or import the CSV as it is — empty rows below the data are never stored.
           </span>
         </div>
       </div>
@@ -241,10 +298,21 @@ export default function AutomationPage() {
       <ImportDialog
         open={importOpen}
         onClose={() => setImportOpen(false)}
-        columns={AUTOMATION_COLUMNS.map((c) => ({ key: c.key, label: c.label, required: c.required }))}
+        columns={columns.map((c) => ({ key: c.key, label: c.label, required: c.required }))}
         title="Import automation file"
         templateName="automation-template.csv"
         onImport={importRows}
+      />
+
+      <ColumnSettingsModal
+        open={columnsOpen}
+        onClose={() => setColumnsOpen(false)}
+        columns={columns}
+        defaults={AUTOMATION_DEFAULTS}
+        onSave={(config) => {
+          cdn.setAutomationColumns(brandId, config);
+          toast("Column layout saved");
+        }}
       />
     </>
   );

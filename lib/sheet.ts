@@ -82,8 +82,7 @@ export const TL_COLUMNS: ColumnMeta[] = [
 ];
 
 /** Automation link columns — 13 columns from the automation export + optional Link Post. */
-export const AUTOMATION_COLUMNS: { key: string; label: string; width: number; required?: boolean; numeric?: boolean }[] = [
-  { key: "campaign", label: "Campaign", width: 320, required: true },
+export const AUTOMATION_COLUMNS: { key: string; label: string; width: number; required?: boolean; numeric?: boolean }[] = [  { key: "campaign", label: "Campaign", width: 320, required: true },
   { key: "ads", label: "Ads", width: 280, required: true },
   { key: "date", label: "Date", width: 120 },
   { key: "impressions", label: "Impressions", width: 120, numeric: true },
@@ -97,6 +96,14 @@ export const AUTOMATION_COLUMNS: { key: string; label: string; width: number; re
   { key: "at75", label: "Video Views At 75%", width: 160, numeric: true },
   { key: "at100", label: "Video Views At 100%", width: 170, numeric: true },
 ];
+
+export const AUTOMATION_DEFAULTS: ColumnMeta[] = AUTOMATION_COLUMNS.map((c) => ({
+  key: c.key,
+  label: c.label,
+  width: c.width,
+  required: c.required,
+  type: c.numeric ? "number" : c.key === "date" ? "date" : "text",
+}));
 
 export const templatesForType = (type: ProjectType): ColumnMeta[] => TS_TEMPLATES[type];
 

@@ -16,7 +16,10 @@ Production check: `npm run build && npm start`.
 | Area | Route | Notes |
 | --- | --- | --- |
 | Brand chooser | `/` | Entry point |
-| Dashboard | `/dashboard` | Root of the performance tree; aggregates the selected campaigns (or an opened group). Sub-views at `/dashboard/kol`, `/dashboard/connector`, `/dashboard/attend`, `/dashboard/ads` |
+| Dashboard | `/dashboard` | Root of the performance tree; aggregates the selected campaigns (or an opened group). Sub-views: **KOL**, **Connector**, **Attend**, **KOL Ads** performance |
+| KOL / Connector performance | `/dashboard/kol`, `/dashboard/connector` | KPI strip, organic vs paid, new views per day chart, top content, leaderboard and paginated content table |
+| KOL Ads performance | `/dashboard/ads` | KPI strip, delivery-per-day chart, view-through funnel and ad materials grouped by ad set |
+| Attend performance | `/dashboard/attend` | Attendance KPI strip and participant table with search, status filter and pagination |
 | Campaign list | `/campaigns` | Card or table view (toggle next to search, view is remembered). Grouped campaigns appear as **Group Campaign** rows/cards. Click to multi-select, open the project list, or group the selection. Edit/delete per row |
 | Project list | `/projects/all` | Sheets for the selected campaigns; type filter inside the page |
 | Project sheet | `/projects/ts/[id]` | Excel-style tracker sheet (10 columns), Save + last-saved indicator, undo, row delete, column layout |

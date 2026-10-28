@@ -396,9 +396,29 @@ export const cdn = {
 
   /* ---------------- automation ---------------- */
 
-  setAutomationRows(rows: AutomationRow[]) {
+  setAutomationRows(rows: AutomationRow[], brandId?: string) {
     const s = getState();
-    commit({ ...s, automation: rows });
+    commit({
+      ...s,
+      automation: rows,
+      automationSavedAt: brandId
+        ? { ...s.automationSavedAt, [brandId]: nowIso() }
+        : s.automationSavedAt,
+    });
+  },
+
+  saveAutomation(brandId: string) {
+    const s = getState();
+    commit({ ...s, automationSavedAt: { ...s.automationSavedAt, [brandId]: nowIso() } });
+  },
+
+  setAutomationColumns(brandId: string, columns: ColumnConfig[]) {
+    const s = getState();
+    commit({
+      ...s,
+      automationColumns: { ...s.automationColumns, [brandId]: columns },
+      automationSavedAt: { ...s.automationSavedAt, [brandId]: nowIso() },
+    });
   },
 
   runMatching(target: { brandId?: string }) {

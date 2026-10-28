@@ -13,6 +13,10 @@ import { toast } from "./Toast";
 type NavEntry = { href: string; label: string; icon: IconName; count?: number };
 
 const titleFor = (path: string): string => {
+  if (path.startsWith("/dashboard/kol")) return "KOL performance";
+  if (path.startsWith("/dashboard/connector")) return "Connector performance";
+  if (path.startsWith("/dashboard/attend")) return "Attend performance";
+  if (path.startsWith("/dashboard/ads")) return "KOL Ads performance";
   if (path === "/dashboard" || path.startsWith("/dashboard/")) return "Dashboard";
   if (path.startsWith("/campaigns/groups")) return "Campaign group";
   if (path.startsWith("/campaigns")) return "Campaign list";

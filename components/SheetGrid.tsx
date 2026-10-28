@@ -96,8 +96,7 @@ function SheetGridInner<T extends { id: string }>(
 
   const display = useMemo(() => {
     const list: T[] = [...rows];
-    // Always keep one empty row at the bottom so Enter can grow the sheet.
-    const blanks = Math.max(1, minRows - rows.length);
+    const blanks = Math.max(5, minRows - rows.length);
     for (let i = 0; i < blanks; i++) list.push(blank());
     return list;
   }, [rows, minRows, blank]);
