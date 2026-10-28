@@ -599,6 +599,7 @@ export function createSeed(): State {
       brandId: "zentara",
       campaignIds: ["cmp_zentara_0"],
       groupId: null,
+      campaignView: "cards",
       sidebarCollapsed: false,
       lastSync: new Date(BASE.getTime() - 42 * 60_000).toISOString(),
       range: 90,

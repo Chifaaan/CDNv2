@@ -173,6 +173,7 @@ export interface UIState {
   campaignIds: string[];
   /** Optional dashboard scope label when the selection came from a group. */
   groupId: string | null;
+  campaignView: "cards" | "table";
   sidebarCollapsed: boolean;
   lastSync: string;
   range: 7 | 30 | 90;

@@ -47,6 +47,7 @@ export function CampaignListView() {
   );
   const groups = state.groups.filter((g) => g.brandId === brandId);
   const activeGroup = state.ui.groupId ? state.groups.find((g) => g.id === state.ui.groupId) : null;
+  const view = state.ui.campaignView ?? "cards";
 
   const selectedCampaigns = brandCampaigns.filter((c) => selected.includes(c.id));
   const groupedIds = new Set(groups.flatMap((g) => g.campaignIds));
@@ -182,11 +183,32 @@ export function CampaignListView() {
             </div>
           )}
 
-          <span className="ml-auto text-[10.5px] text-[var(--muted-2)]">
-            {campaigns.length} campaign{campaigns.length === 1 ? "" : "s"}
-          </span>
+          <div className="ml-auto flex items-center gap-2">
+            <div className="seg h-[30px] !bg-white/80">
+              <button
+                className={`!inline-flex !h-[23px] !min-w-0 !items-center !gap-1.5 !px-2.5 !text-[10px] ${view === "cards" ? "is-on" : ""}`}
+                onClick={() => cdn.setUI({ campaignView: "cards" })}
+                title="Card view"
+              >
+                <Icon name="dashboard" size={11} />
+                Cards
+              </button>
+              <button
+                className={`!inline-flex !h-[23px] !min-w-0 !items-center !gap-1.5 !px-2.5 !text-[10px] ${view === "table" ? "is-on" : ""}`}
+                onClick={() => cdn.setUI({ campaignView: "table" })}
+                title="Table view"
+              >
+                <Icon name="table" size={11} />
+                Table
+              </button>
+            </div>
+            <span className="text-[10.5px] text-[var(--muted-2)]">
+              {campaigns.length} campaign{campaigns.length === 1 ? "" : "s"}
+            </span>
+          </div>
         </div>
 
+        {view === "cards" && (
         <div className="grid gap-4 pb-4 md:grid-cols-2 xl:grid-cols-3">
           {entries.map((entry) => {
             const s = brandStyle(brand?.hue ?? 210);
@@ -431,6 +453,168 @@ export function CampaignListView() {
             </div>
           </div>
         </div>
+        )}
+
+        {view === "table" && (
+          <div className="card overflow-hidden">
+            <div className="scroll-x">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th className="w-[38px]" />
+                    <th className="w-[260px]">Campaign / Group</th>
+                    <th className="w-[100px]">Type</th>
+                    <th>Agency / Campaigns</th>
+                    <th className="w-[195px]">Period</th>
+                    <th className="num w-[80px]">Sheets</th>
+                    <th className="num w-[95px]">Data Ads</th>
+                    <th className="w-[270px]" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {entries.map((entry) => {
+                    if (entry.kind === "group") {
+                      const g = entry.group;
+                      const members = state.campaigns.filter((c) => g.campaignIds.includes(c.id));
+                      const on = members.length > 0 && members.every((m) => selected.includes(m.id));
+                      const projects = state.projects.filter((p) => g.campaignIds.includes(p.campaignId)).length;
+                      const dataAds = state.dataAds.filter((d) => g.campaignIds.includes(d.campaignId)).length;
+                      return (
+                        <tr key={g.id} className={on ? "bg-[#f3f8ff]" : undefined}>
+                          <td>
+                            <input
+                              type="checkbox"
+                              checked={on}
+                              onChange={() => {
+                                const all = members.every((m) => selected.includes(m.id));
+                                cdn.setCampaignSelection(
+                                  all
+                                    ? selected.filter((id) => !g.campaignIds.includes(id))
+                                    : [...new Set([...selected, ...g.campaignIds])],
+                                );
+                              }}
+                              className="accent-[var(--blue)]"
+                            />
+                          </td>
+                          <td>
+                            <div className="flex items-center gap-2">
+                              <span className="badge badge-blue !h-[18px] !text-[8px]">group campaign</span>
+                              <span className="truncate font-medium">{g.name}</span>
+                            </div>
+                            <div className="mt-0.5 truncate text-[10px] text-[var(--muted-2)]">
+                              {members.map((m) => m.name).join(" · ")}
+                            </div>
+                          </td>
+                          <td>
+                            <span className="badge badge-blue">group</span>
+                          </td>
+                          <td className="text-[var(--muted)]">
+                            {members.length} campaign{members.length === 1 ? "" : "s"}
+                          </td>
+                          <td className="text-[11px] text-[var(--muted-2)]">—</td>
+                          <td className="num">{projects}</td>
+                          <td className="num">{dataAds}</td>
+                          <td>
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button className="btn btn-sm" onClick={() => openGroup(g.id)}>
+                                Dashboard
+                              </button>
+                              <button
+                                className="icon-btn h-[26px] w-[26px]"
+                                title="Open project list"
+                                onClick={() => openProjects(g.campaignIds)}
+                              >
+                                <Icon name="projects" size={12} />
+                              </button>
+                              <button
+                                className="icon-btn h-[26px] w-[26px]"
+                                title="Edit group"
+                                onClick={() => {
+                                  setGroupEditId(g.id);
+                                  setGroupSeed([]);
+                                  setGroupOpen(true);
+                                }}
+                              >
+                                <Icon name="edit" size={12} />
+                              </button>
+                              <button
+                                className="icon-btn h-[26px] w-[26px] !text-[#b42318]"
+                                title="Delete group"
+                                onClick={() => {
+                                  cdn.deleteGroup(g.id);
+                                  toast("Campaign group deleted · members are back in the list");
+                                }}
+                              >
+                                <Icon name="trash" size={12} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    const c = entry.campaign;
+                    const info = counts(c);
+                    const on = selected.includes(c.id);
+                    return (
+                      <tr key={c.id} className={on ? "bg-[#f3f8ff]" : undefined}>
+                        <td>
+                          <input
+                            type="checkbox"
+                            checked={on}
+                            onChange={() => toggle(c.id)}
+                            className="accent-[var(--blue)]"
+                          />
+                        </td>
+                        <td>
+                          <div className="flex items-center gap-2">
+                            <span className="truncate font-medium">{c.name}</span>
+                            {activeGroup && activeGroup.campaignIds.includes(c.id) && (
+                              <span className="badge badge-neutral !h-[18px] !text-[8px]">dashboard scope</span>
+                            )}
+                          </div>
+                          <div className="mt-0.5 truncate text-[10px] text-[var(--muted-2)]">
+                            {info.types.map((t) => PROJECT_LABEL[t]).join(" · ") || "No project sheet yet"}
+                          </div>
+                        </td>
+                        <td>
+                          <span className="badge badge-neutral">campaign</span>
+                        </td>
+                        <td className="text-[var(--muted)]">{c.agency}</td>
+                        <td className="whitespace-nowrap text-[11px] text-[var(--muted-2)]">
+                          {c.start} → {c.end}
+                        </td>
+                        <td className="num">{info.projects}</td>
+                        <td className="num">{info.dataAds}</td>
+                        <td>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button className="btn btn-sm" onClick={() => openProjects([c.id])}>
+                              Open project list
+                            </button>
+                            <button
+                              className="icon-btn h-[26px] w-[26px]"
+                              title="Edit campaign"
+                              onClick={() => setEditTarget(c)}
+                            >
+                              <Icon name="edit" size={12} />
+                            </button>
+                            <button
+                              className="icon-btn h-[26px] w-[26px] !text-[#b42318]"
+                              title="Delete campaign"
+                              onClick={() => setDeleteTarget(c)}
+                            >
+                              <Icon name="trash" size={12} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {entries.length === 0 && (
           <div className="card">

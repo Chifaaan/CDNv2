@@ -17,7 +17,7 @@ Production check: `npm run build && npm start`.
 | --- | --- | --- |
 | Brand chooser | `/` | Entry point |
 | Dashboard | `/dashboard` | Root of the performance tree; aggregates the selected campaigns (or an opened group). Sub-views at `/dashboard/kol`, `/dashboard/connector`, `/dashboard/attend`, `/dashboard/ads` |
-| Campaign list | `/campaigns` | Card grid; grouped campaigns appear as **Group Campaign** cards. Click cards to multi-select, open the project list, or group the selection. Edit/delete per card |
+| Campaign list | `/campaigns` | Card or table view (toggle next to search, view is remembered). Grouped campaigns appear as **Group Campaign** rows/cards. Click to multi-select, open the project list, or group the selection. Edit/delete per row |
 | Project list | `/projects/all` | Sheets for the selected campaigns; type filter inside the page |
 | Project sheet | `/projects/ts/[id]` | Excel-style tracker sheet (10 columns), Save + last-saved indicator, undo, row delete, column layout |
 | Data Ads | `/data-ads`, `/data-ads/[id]` | Table of spreadsheets; each spreadsheet holds many sheets and every sheet is a tracker-list grid with its own column layout |
