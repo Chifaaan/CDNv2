@@ -47,6 +47,8 @@ export interface SheetGridProps<T extends { id: string }> {
   onSelectRow?: (row: T | null, index: number) => void;
   onUndo?: () => void;
   onDeleteRow?: (row: T, index: number) => void;
+  /** Keep the extra column pinned to the right edge of the scroll area. */
+  stickyExtra?: boolean;
 }
 
 function letter(i: number): string {
@@ -76,6 +78,7 @@ function SheetGridInner<T extends { id: string }>(
     onSelectRow,
     onUndo,
     onDeleteRow,
+    stickyExtra,
   }: SheetGridProps<T>,
   ref: React.Ref<SheetGridHandle>,
 ) {
@@ -378,7 +381,10 @@ function SheetGridInner<T extends { id: string }>(
                 </th>
               ))}
               {extraColumn && (
-                <th className="col-head" style={{ width: extraColumn.width ?? 150, minWidth: extraColumn.width ?? 150 }}>
+                <th
+                  className={`col-head ${stickyExtra ? "col-extra-sticky" : ""}`}
+                  style={{ width: extraColumn.width ?? 150, minWidth: extraColumn.width ?? 150 }}
+                >
                   <span className="col-letter">{letter(columns.length)}</span>
                   <span className="col-label">{extraColumn.label}</span>
                 </th>
@@ -395,7 +401,8 @@ function SheetGridInner<T extends { id: string }>(
                     className="row-head"
                     onClick={() => {
                       setSel({ r, c: 0 });
-                      setAnchor({ r, c: 0 });
+                      setAnchor({ r, c: Math.max(0, maxCol - 1) });
+                      wrapRef.current?.focus();
                     }}
                   >
                     {r + 1}
@@ -487,7 +494,10 @@ function SheetGridInner<T extends { id: string }>(
                     );
                   })}
                   {extraColumn && (
-                    <td className="cell" style={{ width: extraColumn.width ?? 150, minWidth: extraColumn.width ?? 150 }}>
+                    <td
+                      className={`cell ${stickyExtra ? "cell-extra-sticky" : ""}`}
+                      style={{ width: extraColumn.width ?? 150, minWidth: extraColumn.width ?? 150 }}
+                    >
                       {extraColumn.render(row)}
                     </td>
                   )}

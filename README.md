@@ -26,7 +26,8 @@ Production check: `npm run build && npm start`.
 | Data Ads | `/data-ads`, `/data-ads/[id]` | Table of spreadsheets; each spreadsheet holds many sheets and every sheet is a tracker-list grid with its own column layout |
 | Automation link | `/automation` | Brand-level automation export as an editable spreadsheet |
 | Scraping monitoring | `/scraping` | Link-level success / failed / pending log |
-| Agency workspace | `/agency` | Role-switched view (header: Spectrum ↔ Agency) |
+| Agency workspace | `/agency` | Role-switched view (header: Spectrum ↔ Agency ↔ Vendor ADS) |
+| Boosting workspace | `/vendor` | Vendor ADS only: Data Ads progress per spreadsheet, open a sheet to update each row's boosting status |
 
 ## Sheet formats
 
@@ -63,6 +64,7 @@ Every project type has its own default template. Required columns are green and 
 - **Grouping.** `Campaign group` in the sidebar opens the grouping dialog directly (no separate page) and is prefilled with the current selection. You can also use `Group selected` on the campaign page. A campaign can belong to **one group only**; grouped campaigns disappear from the campaign grid and are represented by their **Group Campaign** card (open dashboard / open project list / edit / delete). Deleting or editing a group down to fewer than two campaigns **dissolves** it and returns the members to the campaign list.
 - **No campaign type or status in the UI.** Type is an internal effort profile used for seeded metrics; campaigns are simply listed.
 - **Per-sheet column layout.** `Columns` in a sheet toolbar opens a layout editor: reorder columns and toggle required/optional per column. The layout is saved per sheet (project sheet or Data Ads sheet), drives the green/blue headers, completeness validation and the import mapping. `Reset to template` restores the standard layout for that project type.
+- **Vendor ADS role.** The third role (header: Spectrum | Agency | Vendor ADS) only sees the **Boosting workspace** and Data Ads. Every Data Ads row carries a boosting status — **Backlog / In Progress / Done** — that only Vendor ADS can change (from the sheet's sticky status column on the right). Spectrum and Agency see it read-only. All other cells are read-only for the vendor. Clicking a row number in any sheet selects the whole row.
 - **Agency filter.** The agency workspace filters project sheets and Data Ads by the selected agency (default: the first agency of the brand); there is no "all agencies" option.
 - **No workflow status on sheets.** Every edit auto-saves; the header shows `Saved just now / 2 min ago`, and `Save` forces a save.
 - **Delete campaign** removes its project sheets and Data Ads containers, removes it from groups, and unlinks its automation rows — the confirmation lists the impact first.

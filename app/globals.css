@@ -1083,6 +1083,25 @@ tr:hover .row-del {
   background: #fdeceb;
 }
 
+.sheet th.col-extra-sticky,
+.sheet td.cell-extra-sticky {
+  position: sticky;
+  right: 0;
+  z-index: 2;
+  background: #fff;
+  border-left: 1px solid var(--line-2);
+  box-shadow: -10px 0 14px -12px rgba(10, 26, 51, 0.45);
+}
+
+.sheet thead th.col-extra-sticky {
+  z-index: 6;
+  background: #f8fafd;
+}
+
+.sheet tbody tr:hover td.cell-extra-sticky {
+  background: #f8fbff;
+}
+
 /* ---------------- misc ---------------- */
 
 .modal-backdrop {

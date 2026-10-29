@@ -20,7 +20,7 @@ import { cleanPublishLink } from "./shortcode";
 import { slugify } from "./utils";
 
 export const STORAGE_KEY = "cdn-v2.state.v1";
-export const STATE_VERSION = 18;
+export const STATE_VERSION = 19;
 
 const BASE = new Date("2026-10-27T09:00:00.000Z");
 
@@ -297,6 +297,7 @@ function emptyRow(id: string): SheetRow {
     cleanLink: "",
     shortcode: "",
     scrape: "pending",
+    boostStatus: "backlog",
   };
 }
 
@@ -391,6 +392,7 @@ function tlRow(prefix: string, idx: number, brandName: string): SheetRow {
     cleanLink: cleanPublishLink(link),
     shortcode: code,
     scrape: rnd() > 0.92 ? "failed" : "success",
+    boostStatus: rnd() > 0.55 ? "backlog" : rnd() > 0.5 ? "in_progress" : "done",
   };
 }
 

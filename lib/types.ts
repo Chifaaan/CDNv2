@@ -1,4 +1,7 @@
-export type Role = "spectrum" | "agency";
+export type Role = "spectrum" | "agency" | "vendor";
+
+/** Boosting workflow status for a Data Ads row (Vendor ADS only). */
+export type BoostStatus = "backlog" | "in_progress" | "done";
 
 export type CampaignType = "KOL" | "CONNECTOR" | "TROOPS" | "ATTEND";
 
@@ -111,6 +114,7 @@ export interface SheetRow {
   cleanLink: string;
   shortcode: string;
   scrape: ScrapeStatus;
+  boostStatus: BoostStatus;
 }
 
 export interface Project {

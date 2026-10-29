@@ -199,6 +199,7 @@ export function emptySheetRow(id?: string): SheetRow {
     cleanLink: "",
     shortcode: "",
     scrape: "pending",
+    boostStatus: "backlog",
   };
 }
 

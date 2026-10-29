@@ -341,6 +341,9 @@ export function StatusBadge({ status }: { status: string }) {
     complete: "badge-ok",
     matched: "badge-ok",
     unmatched: "badge-bad",
+    backlog: "badge-neutral",
+    in_progress: "badge-blue",
+    done: "badge-ok",
   };
   const label = status.replace("_", " ");
   return <span className={`badge ${map[status] ?? "badge-neutral"}`}>{label}</span>;

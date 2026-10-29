@@ -26,6 +26,7 @@ const titleFor = (path: string): string => {
   if (path.startsWith("/automation")) return "Automation link";
   if (path.startsWith("/scraping")) return "Scraping monitoring";
   if (path.startsWith("/agency")) return "Agency workspace";
+  if (path.startsWith("/vendor")) return "Boosting workspace";
   return "CDN";
 };
 
@@ -33,7 +34,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const state = useCdn();
   const pathname = usePathname();
   const router = useRouter();
-  const [role, brandId, sidebarCollapsed] = [state.ui.role, state.ui.brandId, state.ui.sidebarCollapsed];
+  const role = state.ui.role;
+  const brandId = state.ui.brandId;
+  const sidebarCollapsed = state.ui.sidebarCollapsed;
   const [dashOpen, setDashOpen] = useState(true);
   const [groupOpen, setGroupOpen] = useState(false);
   const [campaignMenuOpen, setCampaignMenuOpen] = useState(false);
@@ -70,6 +73,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (role === "agency" && !/^\/(agency|projects|data-ads)/.test(pathname)) {
       router.replace("/agency");
+    }
+    if (role === "vendor" && !/^\/(vendor|data-ads)/.test(pathname)) {
+      router.replace("/vendor");
     }
   }, [role, pathname, router]);
 
@@ -153,6 +159,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 {brand?.name} · {activeCampaigns.length} selected campaign{activeCampaigns.length === 1 ? "" : "s"}
               </div>
             </>
+          ) : role === "vendor" ? (
+            <>
+              <div className="nav-section">Vendor ADS</div>
+              {navItem({ href: "/vendor", label: "Boosting workspace", icon: "ads" })}
+              {navItem({ href: "/data-ads", label: "Data Ads", icon: "table", count: counts.dataAds })}
+              <div className="mt-4 rounded-xl border border-[#cfe0ff] bg-[#eef5ff] p-3 text-[11px] leading-[1.5] text-[#2b4a7a]">
+                <div className="mb-1 text-[9.5px] font-semibold uppercase tracking-[0.12em]">Your job</div>
+                Update the boosting status per row (Backlog → In Progress → Done). Other cells are read-only.
+              </div>
+            </>
           ) : (
             <>
               <div className={`nav-item ${pathname === "/dashboard" ? "is-active" : ""} !pr-1`}>
@@ -215,7 +231,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </Link>
           {!sidebarCollapsed && (
             <div className="sidebar-foot-note mt-2 px-2 pb-1 text-[10px] leading-4 text-[var(--muted-2)]">
-              Signed in as <span className="font-semibold text-[var(--ink-2)]">Spectrum</span> · CDN v2 prototype
+              Signed in as{" "}
+              <span className="font-semibold text-[var(--ink-2)]">
+                {role === "agency" ? "Agency" : role === "vendor" ? "Vendor ADS" : "Spectrum"}
+              </span>{" "}
+              · CDN v2 prototype
             </div>
           )}
         </div>
@@ -346,7 +366,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
             <div className="seg hidden h-[30px] !bg-white/80 md:flex">
               <button
-                className={`!h-[23px] !min-w-0 !px-2.5 !text-[9.5px] !uppercase !tracking-[0.08em] ${role === "spectrum" ? "is-on" : ""}`}
+                className={`!h-[23px] !min-w-0 !px-2 !text-[9.5px] !uppercase !tracking-[0.06em] ${role === "spectrum" ? "is-on" : ""}`}
                 onClick={() => {
                   cdn.setUI({ role: "spectrum" });
                   router.push("/dashboard");
@@ -355,13 +375,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 Spectrum
               </button>
               <button
-                className={`!h-[23px] !min-w-0 !px-2.5 !text-[9.5px] !uppercase !tracking-[0.08em] ${role === "agency" ? "is-on" : ""}`}
+                className={`!h-[23px] !min-w-0 !px-2 !text-[9.5px] !uppercase !tracking-[0.06em] ${role === "agency" ? "is-on" : ""}`}
                 onClick={() => {
                   cdn.setUI({ role: "agency" });
                   router.push("/agency");
                 }}
               >
                 Agency
+              </button>
+              <button
+                className={`!h-[23px] !min-w-0 !px-2 !text-[9.5px] !uppercase !tracking-[0.06em] ${role === "vendor" ? "is-on" : ""}`}
+                onClick={() => {
+                  cdn.setUI({ role: "vendor" });
+                  router.push("/vendor");
+                }}
+              >
+                Vendor ADS
               </button>
             </div>
 

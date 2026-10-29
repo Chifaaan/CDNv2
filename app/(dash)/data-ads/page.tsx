@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { cdn, useCdn } from "@/lib/store";
-import type { Campaign } from "@/lib/types";
+import type { Campaign, BoostStatus } from "@/lib/types";
 import { fmtInt, pct, relTime } from "@/lib/utils";
 import { Icon } from "@/components/Icon";
 import { BrandAvatar, EmptyState, Field, Modal, PageHero, SectionHead, Select, StatusBadge } from "@/components/ui";
@@ -21,14 +21,16 @@ export default function DataAdsPage() {
   const selectedCampaigns = state.campaigns.filter((c) => state.ui.campaignIds.includes(c.id));
   const [openNew, setOpenNew] = useState(false);
   const [query, setQuery] = useState("");
+  const [boost, setBoost] = useState<"all" | BoostStatus>("all");
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   const containers = useMemo(
     () =>
       state.dataAds
         .filter((d) => d.brandId === brandId && state.ui.campaignIds.includes(d.campaignId))
+        .filter((d) => (boost === "all" ? true : d.sheets.some((s) => s.rows.some((r) => r.boostStatus === boost))))
         .filter((d) => d.name.toLowerCase().includes(query.toLowerCase())),
-    [state.dataAds, brandId, state.ui.campaignIds, query],
+    [state.dataAds, brandId, state.ui.campaignIds, query, boost],
   );
 
   const all = state.dataAds.filter(
@@ -83,6 +85,16 @@ export default function DataAdsPage() {
               onChange={(e) => setQuery(e.target.value)}
             />
           </div>
+          <Select
+            value={boost}
+            onChange={(v) => setBoost(v as "all" | BoostStatus)}
+            options={[
+              { value: "all", label: "All boosting status" },
+              { value: "backlog", label: "Has backlog" },
+              { value: "in_progress", label: "Has in progress" },
+              { value: "done", label: "Has done" },
+            ]}
+          />
           <span className="ml-auto text-[10.5px] text-[var(--muted-2)]">
             Scoped to {brand.name} · {selectedCampaigns.length} campaign{selectedCampaigns.length === 1 ? "" : "s"}
           </span>
@@ -101,6 +113,7 @@ export default function DataAdsPage() {
                   <th className="num">Sheets</th>
                   <th className="num">Rows</th>
                   <th className="num">With link</th>
+                  <th className="w-[150px]">Boosting</th>
                   <th>Last saved</th>
                   <th className="w-[130px]" />
                 </tr>
@@ -125,6 +138,25 @@ export default function DataAdsPage() {
                       <td className="num font-semibold">{d.sheets.length}</td>
                       <td className="num">{fmtInt(dRows.length)}</td>
                       <td className="num">{dLinked}</td>
+                      <td>
+                        {(() => {
+                          const done = dRows.filter((r) => r.boostStatus === "done").length;
+                          const rate = dRows.length ? done / dRows.length : 0;
+                          return (
+                            <div className="flex items-center gap-2">
+                              <span className="block h-[6px] flex-1 overflow-hidden rounded-full bg-[#eef2f8]">
+                                <span
+                                  className="block h-full rounded-full bg-[#12b76a]"
+                                  style={{ width: `${Math.max(0, rate * 100)}%` }}
+                                />
+                              </span>
+                              <span className="w-10 shrink-0 text-right text-[10px] text-[var(--muted-2)]">
+                                {done}/{dRows.length}
+                              </span>
+                            </div>
+                          );
+                        })()}
+                      </td>
                       <td className="whitespace-nowrap text-[11px] text-[var(--muted-2)]">
                         {new Date(d.savedAt).toLocaleDateString("en-US")}
                       </td>

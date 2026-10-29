@@ -15,7 +15,7 @@ import {
   resolveColumns,
   sheetDedupeKey,
 } from "@/lib/sheet";
-import type { SheetRow } from "@/lib/types";
+import type { BoostStatus, SheetRow } from "@/lib/types";
 import { Icon } from "@/components/Icon";
 import { CopyButton, EmptyState, PageHero, SavedIndicator, StatusBadge } from "@/components/ui";
 import { SheetGrid, type SheetGridHandle } from "@/components/SheetGrid";
@@ -62,6 +62,16 @@ export default function DataAdsDetailPage() {
   const sheet = dataAds.sheets.find((s) => s.id === activeId) ?? dataAds.sheets[0];
   const rows = sheet?.rows ?? [];
   const columns = useMemo(() => resolveColumns(TL_COLUMNS, sheet?.columns), [sheet?.columns]);
+  const isVendor = state.ui.role === "vendor";
+  const vendorColumns = useMemo(
+    () => columns.map((c) => ({ ...c, readOnly: true })),
+    [columns],
+  );
+  const boostCounts = {
+    backlog: rows.filter((r) => r.boostStatus === "backlog").length,
+    in_progress: rows.filter((r) => r.boostStatus === "in_progress").length,
+    done: rows.filter((r) => r.boostStatus === "done").length,
+  };
 
   const dupSet = useMemo(() => {
     const seen = new Map<string, number>();
@@ -154,8 +164,14 @@ export default function DataAdsDetailPage() {
     download(
       `data-ads-${dataAds!.id}-${sheet?.name ?? "sheet"}.csv`.replace(/\s+/g, "-").toLowerCase(),
       toCSV(
-        [...columns.map((c) => c.label), "Clean Publish Link", "Shortcode", "Scrape"],
-        rows.map((r) => [...columns.map((c) => String((r as unknown as Record<string, string>)[c.key] ?? "")), r.cleanLink, r.shortcode, r.scrape]),
+        [...columns.map((c) => c.label), "Clean Publish Link", "Shortcode", "Scrape", "Boosting status"],
+        rows.map((r) => [
+          ...columns.map((c) => String((r as unknown as Record<string, string>)[c.key] ?? "")),
+          r.cleanLink,
+          r.shortcode,
+          r.scrape,
+          r.boostStatus,
+        ]),
       ),
     );
     toast("Sheet exported as CSV");
@@ -210,14 +226,18 @@ export default function DataAdsDetailPage() {
               <Icon name="download" size={13} />
               Export
             </button>
-            <button className="btn" onClick={() => setImportOpen(true)}>
-              <Icon name="upload" size={13} />
-              Import
-            </button>
-            <button className="btn btn-dark" onClick={save} disabled={saving}>
-              <Icon name="check" size={13} className={saving ? "spin" : ""} />
-              {saving ? "Saving…" : "Save"}
-            </button>
+            {!isVendor && (
+              <>
+                <button className="btn" onClick={() => setImportOpen(true)}>
+                  <Icon name="upload" size={13} />
+                  Import
+                </button>
+                <button className="btn btn-dark" onClick={save} disabled={saving}>
+                  <Icon name="check" size={13} className={saving ? "spin" : ""} />
+                  {saving ? "Saving…" : "Save"}
+                </button>
+              </>
+            )}
           </>
         }
       />
@@ -225,19 +245,29 @@ export default function DataAdsDetailPage() {
       <div className="relative z-[1] px-9 pt-4">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <Stat label="Rows · this sheet" value={fmtInt(rows.length)} hint={`${complete} complete rows`} />
-          <Stat
-            label="Required complete"
-            value={pct(rows.length ? complete / rows.length : 0)}
-            hint={incomplete ? `${incomplete} rows missing required columns` : "All rows have required columns"}
-            accent={incomplete ? "warn" : "ok"}
-          />
-          <Stat label="With link" value={`${linked}/${rows.length}`} hint="Shortcode extracted for matching" />
-          <Stat
-            label="Duplicates"
-            value={fmtInt(dupSet.size)}
-            hint={dupSet.size ? "Remove before syncing" : "Sheet is clean"}
-            accent={dupSet.size ? "warn" : "ok"}
-          />
+          {isVendor ? (
+            <>
+              <Stat label="Backlog" value={fmtInt(boostCounts.backlog)} hint="Waiting to be picked up" accent="warn" />
+              <Stat label="In Progress" value={fmtInt(boostCounts.in_progress)} hint="Currently boosting" />
+              <Stat label="Done" value={fmtInt(boostCounts.done)} hint="Boost finished" accent="ok" />
+            </>
+          ) : (
+            <>
+              <Stat
+                label="Required complete"
+                value={pct(rows.length ? complete / rows.length : 0)}
+                hint={incomplete ? `${incomplete} rows missing required columns` : "All rows have required columns"}
+                accent={incomplete ? "warn" : "ok"}
+              />
+              <Stat label="With link" value={`${linked}/${rows.length}`} hint="Shortcode extracted for matching" />
+              <Stat
+                label="Duplicates"
+                value={fmtInt(dupSet.size)}
+                hint={dupSet.size ? "Remove before syncing" : "Sheet is clean"}
+                accent={dupSet.size ? "warn" : "ok"}
+              />
+            </>
+          )}
         </div>
 
         <div className="mt-5 flex flex-wrap items-center gap-1 rounded-xl border border-[var(--line-2)] bg-white/80 p-1">
@@ -275,7 +305,7 @@ export default function DataAdsDetailPage() {
                     <span className={on ? "text-white/50" : "text-[var(--muted-2)]"}>{s.rows.length}</span>
                   </button>
                 )}
-                {on && !isRenaming && (
+                {on && !isRenaming && !isVendor && (
                   <>
                     <button
                       className="ml-1 grid h-5 w-5 place-items-center rounded hover:bg-white/15"
@@ -302,43 +332,49 @@ export default function DataAdsDetailPage() {
               </div>
             );
           })}
-          <button
-            onClick={addSheet}
-            className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11.5px] font-medium text-[var(--blue-deep)] hover:bg-[#f4f8ff]"
-          >
-            <Icon name="plus" size={11} /> Sheet
-          </button>
+          {!isVendor && (
+            <button
+              onClick={addSheet}
+              className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11.5px] font-medium text-[var(--blue-deep)] hover:bg-[#f4f8ff]"
+            >
+              <Icon name="plus" size={11} /> Sheet
+            </button>
+          )}
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-2">
-          <button className="btn" onClick={undo} disabled={!canUndo} title="Undo last change (Ctrl+Z)">
-            <Icon name="undo" size={13} />
-            Undo
-          </button>
-          <button className="btn" onClick={() => setColumnsOpen(true)} title="Reorder columns and set required fields">
-            <Icon name="list" size={13} />
-            Columns
-          </button>
-          <button className="btn" onClick={pasteFromClipboard}>
-            <Icon name="copy" size={13} />
-            Paste block
-          </button>
-          <button className="btn" onClick={() => setImportOpen(true)}>
-            <Icon name="upload" size={13} />
-            Import CSV
-          </button>
-          <button className="btn" onClick={() => applyRows([...rows, emptySheetRow()])}>
-            <Icon name="plus" size={13} />
-            Add row
-          </button>
-          <button className="btn" onClick={removeDuplicates} disabled={rows.length === 0}>
-            <Icon name="filter" size={13} />
-            Remove duplicate
-            {dupSet.size > 0 && <span className="badge badge-bad !h-[18px] !px-1.5 !text-[8.5px]">{dupSet.size}</span>}
-          </button>
-          <button className="btn btn-ghost" onClick={clearEmpty}>
-            Clear empty rows
-          </button>
+          {!isVendor && (
+            <>
+              <button className="btn" onClick={undo} disabled={!canUndo} title="Undo last change (Ctrl+Z)">
+                <Icon name="undo" size={13} />
+                Undo
+              </button>
+              <button className="btn" onClick={() => setColumnsOpen(true)} title="Reorder columns and set required fields">
+                <Icon name="list" size={13} />
+                Columns
+              </button>
+              <button className="btn" onClick={pasteFromClipboard}>
+                <Icon name="copy" size={13} />
+                Paste block
+              </button>
+              <button className="btn" onClick={() => setImportOpen(true)}>
+                <Icon name="upload" size={13} />
+                Import CSV
+              </button>
+              <button className="btn" onClick={() => applyRows([...rows, emptySheetRow()])}>
+                <Icon name="plus" size={13} />
+                Add row
+              </button>
+              <button className="btn" onClick={removeDuplicates} disabled={rows.length === 0}>
+                <Icon name="filter" size={13} />
+                Remove duplicate
+                {dupSet.size > 0 && <span className="badge badge-bad !h-[18px] !px-1.5 !text-[8.5px]">{dupSet.size}</span>}
+              </button>
+              <button className="btn btn-ghost" onClick={clearEmpty}>
+                Clear empty rows
+              </button>
+            </>
+          )}
           <span className="ml-auto flex items-center gap-3 text-[10.5px] text-[var(--muted-2)]">
             <span className="flex items-center gap-1.5">
               <span className="h-2 w-2 rounded-sm bg-[#12b76a]" /> required
@@ -352,7 +388,7 @@ export default function DataAdsDetailPage() {
         <div className="mt-3">
           <SheetGrid<SheetRow>
             ref={gridRef}
-            columns={columns}
+            columns={isVendor ? vendorColumns : columns}
             rows={rows}
             onChange={applyRows}
             derive={deriveSheetRow}
@@ -360,11 +396,32 @@ export default function DataAdsDetailPage() {
             duplicates={dupSet}
             dedupeKey={sheetDedupeKey}
             onSelectRow={(row) => setSelected(row)}
-            onUndo={undo}
-            onDeleteRow={deleteRow}
+            onUndo={isVendor ? undefined : undo}
+            onDeleteRow={isVendor ? undefined : deleteRow}
+            extraColumn={{
+              label: "Boosting status",
+              width: 150,
+              render: (r) =>                !r.creativeName && !r.linkPost ? null : isVendor && sheet ? (
+                  <select
+                    className="h-[23px] w-full rounded-md border border-[var(--line-2)] bg-white px-1 text-[10.5px] outline-none"
+                    value={r.boostStatus}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onChange={(e) =>
+                      cdn.setBoostStatus(dataAds.id, sheet.id, r.id, e.target.value as BoostStatus)
+                    }
+                  >
+                    <option value="backlog">Backlog</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="done">Done</option>
+                  </select>
+                ) : (
+                  <StatusBadge status={r.boostStatus} />
+                ),
+            }}
             marker={(r) =>
               !isRowEmpty(r, columns) && missingRequired(r, columns).length > 0 ? "bad" : null
             }
+            stickyExtra={isVendor}
             emptyHint="Paste the tracker list block here — one sheet per batch/seat."
           />
         </div>
@@ -395,7 +452,7 @@ export default function DataAdsDetailPage() {
           </div>
           <div className="ml-auto flex items-center gap-2 text-[10px] text-[var(--muted-2)]">
             <CopyButton value={`/data-ads/${dataAds.id}`} label="Link" compact />
-            <span>Ctrl+Z to undo · trash icon removes a row</span>
+            <span>{isVendor ? "Change the boosting status on the right of each row" : "Ctrl+Z to undo · trash icon removes a row"}</span>
           </div>
         </div>
 

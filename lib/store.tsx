@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from "react";
 import type {
   AutomationRow,
+  BoostStatus,
   Campaign,
   CampaignGroup,
   CampaignType,
@@ -365,8 +366,7 @@ export const cdn = {
     });
   },
 
-  setDataAdsColumns(dataAdsId: string, sheetId: string, columns: ColumnConfig[]) {
-    const s = getState();
+  setDataAdsColumns(dataAdsId: string, sheetId: string, columns: ColumnConfig[]) {    const s = getState();
     commit({
       ...s,
       dataAds: s.dataAds.map((d) =>
@@ -386,6 +386,26 @@ export const cdn = {
     commit({
       ...s,
       dataAds: s.dataAds.map((d) => (d.id === dataAdsId ? { ...d, savedAt: nowIso() } : d)),
+    });
+  },
+
+  setBoostStatus(dataAdsId: string, sheetId: string, rowId: string, status: BoostStatus) {
+    const s = getState();
+    commit({
+      ...s,
+      dataAds: s.dataAds.map((d) =>
+        d.id === dataAdsId
+          ? {
+              ...d,
+              savedAt: nowIso(),
+              sheets: d.sheets.map((sh) =>
+                sh.id === sheetId
+                  ? { ...sh, rows: sh.rows.map((r) => (r.id === rowId ? { ...r, boostStatus: status } : r)) }
+                  : sh,
+              ),
+            }
+          : d,
+      ),
     });
   },
 
