@@ -4,8 +4,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
 import { cdn, useCdn } from "@/lib/store";
-import { download, fmtInt, pct, toCSV } from "@/lib/utils";
-import { PROJECT_LABEL, PROJECT_SLUG } from "@/lib/seed";
+import { download, fmtInt, pct, toCSV, normalizeFollowers } from "@/lib/utils";import { PROJECT_LABEL, PROJECT_SLUG } from "@/lib/seed";
 import {
   deriveSheetRow,
   emptySheetRow,
@@ -166,6 +165,7 @@ export default function ProjectSheetPage() {
       const derived = deriveSheetRow(row, "publishLink", raw.publishLink ?? "");
       row.cleanLink = derived.cleanLink;
       row.shortcode = derived.shortcode;
+      row.followers = normalizeFollowers(raw.followers ?? "");
       return row;
     });
     applyRows([...project!.rows, ...mapped]);

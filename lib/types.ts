@@ -254,6 +254,7 @@ export interface State {
   attendees: Attendee[];
   automationSavedAt: Record<string, string>;
   automationColumns: Record<string, ColumnConfig[]>;
+  automationLinks: Record<string, string>;
   ui: UIState;
 }
 

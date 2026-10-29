@@ -48,10 +48,14 @@ export function CampaignListView() {
   const groups = state.groups.filter((g) => g.brandId === brandId);
   const activeGroup = state.ui.groupId ? state.groups.find((g) => g.id === state.ui.groupId) : null;
   const view = state.ui.campaignView ?? "cards";
+  const [sort, setSort] = useState<{ key: "name" | "type" | "agency" | "period" | "sheets" | "dataAds"; dir: "asc" | "desc" }>({
+    key: "name",
+    dir: "asc",
+  });
 
   const selectedCampaigns = brandCampaigns.filter((c) => selected.includes(c.id));
   const groupedIds = new Set(groups.flatMap((g) => g.campaignIds));
-  const entries = [
+  const rawEntries = [
     ...groups
       .filter((g) => {
         const q = query.trim().toLowerCase();
@@ -65,7 +69,76 @@ export function CampaignListView() {
     ...campaigns
       .filter((c) => !groupedIds.has(c.id))
       .map((c) => ({ kind: "campaign" as const, name: c.name, campaign: c })),
-  ].sort((a, b) => a.name.localeCompare(b.name));
+  ];
+
+  const entries = useMemo(() => {
+    const meta = rawEntries.map((e) => {
+      if (e.kind === "campaign") {
+        return {
+          entry: e,
+          name: e.name,
+          type: "campaign",
+          agency: e.campaign.agency,
+          period: e.campaign.start,
+          sheets: state.projects.filter((p) => p.campaignId === e.campaign.id).length,
+          dataAds: state.dataAds.filter((d) => d.campaignId === e.campaign.id).length,
+        };
+      }
+      const members = state.campaigns.filter((c) => e.group.campaignIds.includes(c.id));
+      return {
+        entry: e,
+        name: e.name,
+        type: "group",
+        agency: members[0]?.agency ?? "",
+        period: "",
+        sheets: state.projects.filter((p) => e.group.campaignIds.includes(p.campaignId)).length,
+        dataAds: state.dataAds.filter((d) => e.group.campaignIds.includes(d.campaignId)).length,
+      };
+    });
+    const dir = sort.dir === "asc" ? 1 : -1;
+    meta.sort((a, b) => {
+      const av = a[sort.key];
+      const bv = b[sort.key];
+      if (typeof av === "number" && typeof bv === "number") return (av - bv) * dir;
+      return String(av).localeCompare(String(bv)) * dir;
+    });
+    return meta.map((m) => m.entry);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rawEntries.map((e) => e.name).join("|"), sort, state.projects, state.dataAds, state.campaigns]);
+
+  function toggleSort(key: typeof sort.key) {
+    setSort((s) => ({ key, dir: s.key === key && s.dir === "asc" ? "desc" : "asc" }));
+  }
+
+  function SortTh({
+    sortKey,
+    label,
+    className = "",
+  }: {
+    sortKey: typeof sort.key;
+    label: string;
+    className?: string;
+  }) {
+    const active = sort.key === sortKey;
+    return (
+      <th className={className}>
+        <button
+          onClick={() => toggleSort(sortKey)}
+          className={`inline-flex items-center gap-1 text-[9.5px] font-semibold uppercase tracking-[0.13em] ${
+            active ? "text-[var(--ink)]" : "text-[var(--muted-2)]"
+          }`}
+          title={`Sort by ${label}`}
+        >
+          {label}
+          <Icon
+            name="chevronDown"
+            size={10}
+            className={`transition-transform ${active ? (sort.dir === "asc" ? "rotate-180" : "") : "opacity-30"}`}
+          />
+        </button>
+      </th>
+    );
+  }
 
   function counts(campaign: Campaign) {
     return {
@@ -462,12 +535,12 @@ export function CampaignListView() {
                 <thead>
                   <tr>
                     <th className="w-[38px]" />
-                    <th className="w-[260px]">Campaign / Group</th>
-                    <th className="w-[100px]">Type</th>
-                    <th>Agency / Campaigns</th>
-                    <th className="w-[195px]">Period</th>
-                    <th className="num w-[80px]">Sheets</th>
-                    <th className="num w-[95px]">Data Ads</th>
+                    <SortTh sortKey="name" label="Campaign / Group" className="w-[260px]" />
+                    <SortTh sortKey="type" label="Type" className="w-[100px]" />
+                    <SortTh sortKey="agency" label="Agency / Campaigns" />
+                    <SortTh sortKey="period" label="Period" className="w-[195px]" />
+                    <SortTh sortKey="sheets" label="Sheets" className="num w-[80px]" />
+                    <SortTh sortKey="dataAds" label="Data Ads" className="num w-[95px]" />
                     <th className="w-[270px]" />
                   </tr>
                 </thead>

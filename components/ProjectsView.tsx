@@ -27,6 +27,10 @@ export function ProjectsView({ initialType }: { initialType?: ProjectType | "ALL
   const [query, setQuery] = useState("");
   const [agency, setAgency] = useState("all");
   const [openNew, setOpenNew] = useState(false);
+  const [sort, setSort] = useState<{
+    key: "type" | "agency" | "rows" | "complete" | "created" | "lastSaved";
+    dir: "asc" | "desc";
+  }>({ key: "lastSaved", dir: "desc" });
 
   const scope = useMemo(
     () =>
@@ -42,7 +46,63 @@ export function ProjectsView({ initialType }: { initialType?: ProjectType | "ALL
   const projects = scope
     .filter((p) => (agency === "all" ? true : p.agency === agency))
     .filter((p) => `${p.agency} ${p.pmLink} ${PROJECT_LABEL[p.type]}`.toLowerCase().includes(query.toLowerCase()))
-    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+    .sort((a, b) => {
+      const dir = sort.dir === "asc" ? 1 : -1;
+      const completeOf = (p: (typeof scope)[number]) =>
+        p.rows.length
+          ? p.rows.filter((r) => isRowComplete(r, resolveColumns(templatesForType(p.type), p.columns))).length /
+            p.rows.length
+          : 0;
+      switch (sort.key) {
+        case "type":
+          return (ORDER.indexOf(a.type) - ORDER.indexOf(b.type)) * dir;
+        case "agency":
+          return a.agency.localeCompare(b.agency) * dir;
+        case "rows":
+          return (a.rows.length - b.rows.length) * dir;
+        case "complete":
+          return (completeOf(a) - completeOf(b)) * dir;
+        case "created":
+          return a.createdAt.localeCompare(b.createdAt) * dir;
+        case "lastSaved":
+        default:
+          return a.savedAt.localeCompare(b.savedAt) * dir;
+      }
+    });
+
+  function toggleSort(key: typeof sort.key) {
+    setSort((s) => ({ key, dir: s.key === key && s.dir === "asc" ? "desc" : "asc" }));
+  }
+
+  function SortTh({
+    sortKey,
+    label,
+    className = "",
+  }: {
+    sortKey: typeof sort.key;
+    label: string;
+    className?: string;
+  }) {
+    const active = sort.key === sortKey;
+    return (
+      <th className={className}>
+        <button
+          onClick={() => toggleSort(sortKey)}
+          className={`inline-flex items-center gap-1 text-[9.5px] font-semibold uppercase tracking-[0.13em] ${
+            active ? "text-[var(--ink)]" : "text-[var(--muted-2)]"
+          }`}
+          title={`Sort by ${label}`}
+        >
+          {label}
+          <Icon
+            name="chevronDown"
+            size={10}
+            className={`transition-transform ${active ? (sort.dir === "asc" ? "rotate-180" : "") : "opacity-30"}`}
+          />
+        </button>
+      </th>
+    );
+  }
 
   const rows = scope.flatMap((p) => p.rows);
   const complete = scope
@@ -193,12 +253,12 @@ export function ProjectsView({ initialType }: { initialType?: ProjectType | "ALL
               <thead>
                 <tr>
                   <th className="w-[220px]">PM link</th>
-                  <th>Type</th>
-                  <th>Agency</th>
-                  <th className="num">Rows</th>
-                  <th className="w-[150px]">Complete</th>
-                  <th>Created</th>
-                  <th>Last saved</th>
+                  <SortTh sortKey="type" label="Type" />
+                  <SortTh sortKey="agency" label="Agency" />
+                  <SortTh sortKey="rows" label="Rows" className="num" />
+                  <SortTh sortKey="complete" label="Complete" className="w-[150px]" />
+                  <SortTh sortKey="created" label="Created" />
+                  <SortTh sortKey="lastSaved" label="Last saved" />
                   <th className="w-[70px]" />
                 </tr>
               </thead>

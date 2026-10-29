@@ -81,7 +81,53 @@ export function download(name: string, content: string, type = "text/csv;charset
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-/** Parse pasted clipboard / CSV / TSV text into a matrix. */
+/** Normalize follower counts to a dot-separated integer, e.g. 1.234.567. */
+export function normalizeFollowers(raw: string): string {
+  const input = String(raw ?? "").trim();
+  if (!input) return "";
+  const compact = input.replace(/\s/g, "").toLowerCase();
+
+  const suffix = compact.match(/^([\d.,]+)([kmb])$/);
+  let multiplier = 1;
+  let numeric = compact;
+  if (suffix) {
+    numeric = suffix[1];
+    multiplier = suffix[2] === "k" ? 1_000 : suffix[2] === "m" ? 1_000_000 : 1_000_000_000;
+  }
+
+  if (!/^[\d.,]+$/.test(numeric)) return input;
+
+  const dots = (numeric.match(/\./g) ?? []).length;
+  const commas = (numeric.match(/,/g) ?? []).length;
+  let value: number;
+
+  if (dots > 0 && commas > 0) {
+    // The last separator is the decimal separator, the other one groups thousands.
+    const lastDot = numeric.lastIndexOf(".");
+    const lastComma = numeric.lastIndexOf(",");
+    if (lastComma > lastDot) {
+      value = Number(numeric.replace(/\./g, "").replace(",", "."));
+    } else {
+      value = Number(numeric.replace(/,/g, ""));
+    }
+  } else if (dots > 0) {
+    const parts = numeric.split(".");
+    const thousands = parts.length > 2 || (parts[1]?.length === 3 && parts[0].length <= 3);
+    value = thousands ? Number(parts.join("")) : Number(parts.join("."));
+  } else if (commas > 0) {
+    const parts = numeric.split(",");
+    const thousands = parts.length > 2 || (parts[1]?.length === 3 && parts[0].length <= 3);
+    value = thousands ? Number(parts.join("")) : Number(parts.join("."));
+  } else {
+    value = Number(numeric);
+  }
+
+  if (!Number.isFinite(value)) return input;
+  const rounded = Math.round(value * multiplier);
+  return String(rounded).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+}
+
+
 export function parseDelimited(text: string): string[][] {
   const clean = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trimEnd();
   if (!clean) return [];

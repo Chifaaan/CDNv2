@@ -24,7 +24,7 @@ Production check: `npm run build && npm start`.
 | Project list | `/projects/all` | Sheets for the selected campaigns; type filter inside the page |
 | Project sheet | `/projects/ts/[id]` | Excel-style tracker sheet (10 columns), Save + last-saved indicator, undo, row delete, column layout |
 | Data Ads | `/data-ads`, `/data-ads/[id]` | Table of spreadsheets; each spreadsheet holds many sheets and every sheet is a tracker-list grid with its own column layout |
-| Automation link | `/automation` | Brand-level automation export as an editable spreadsheet |
+| Automation link | `/automation` | Paste a spreadsheet link; the (simulated) crawler fills a read-only table |
 | Scraping monitoring | `/scraping` | Link-level success / failed / pending log |
 | Agency workspace | `/agency` | Role-switched view (header: Spectrum ↔ Agency ↔ Vendor ADS) |
 | Boosting workspace | `/vendor` | Vendor ADS only: Data Ads progress per spreadsheet, open a sheet to update each row's boosting status |
@@ -68,6 +68,10 @@ Every project type has its own default template. Required columns are green and 
 - **Agency filter.** The agency workspace filters project sheets and Data Ads by the selected agency (default: the first agency of the brand); there is no "all agencies" option.
 - **No workflow status on sheets.** Every edit auto-saves; the header shows `Saved just now / 2 min ago`, and `Save` forces a save.
 - **Delete campaign** removes its project sheets and Data Ads containers, removes it from groups, and unlinks its automation rows — the confirmation lists the impact first.
+- **Automation link is crawl-only.** Spectrum pastes a spreadsheet link per brand; `Sync now` "crawls" it (simulated — any link returns dummy rows) and the table is read-only. Export and the Columns layout remain available.
+- **Follower normalization.** Follower values are parsed from dots, commas, or K/M/B suffixes and stored consistently with dot thousands (`58.000`, `1.234.567`) on edit and import.
+- **Duplicate detection is shortcode-only.** Rows are duplicates only when they share the same non-empty shortcode; the publish link is no longer used.
+- **Sortable tables.** Campaign list (table view) and Project list headers toggle asc/desc.
 - **Excel behaviour.**
   - Enter commits and moves down; the sheet always keeps one empty row at the bottom so a new row appears as you type.
   - Pasting a block (Ctrl+V) inserts exactly as many rows as the block needs.

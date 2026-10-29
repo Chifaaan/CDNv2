@@ -17,10 +17,10 @@ import type {
   State,
 } from "./types";
 import { cleanPublishLink } from "./shortcode";
-import { slugify } from "./utils";
+import { normalizeFollowers, slugify } from "./utils";
 
 export const STORAGE_KEY = "cdn-v2.state.v1";
-export const STATE_VERSION = 19;
+export const STATE_VERSION = 20;
 
 const BASE = new Date("2026-10-27T09:00:00.000Z");
 
@@ -347,7 +347,7 @@ function tsRow(prefix: string, idx: number, type: ProjectType): SheetRow {
     ...common,
     name: handle,
     linkAccount: useTikTok ? `https://www.tiktok.com/@${handle}` : `https://www.instagram.com/${handle}`,
-    followers: `${int(8, 2500)}.${pad(int(0, 999), 3)}`,
+    followers: normalizeFollowers(String(int(8_000, 2_500_000))),
     niche: pick(NICHES),
     sowItem: pick(SOW_ITEMS),
     actualPublishDate: iso(int(10, 80)),
@@ -718,9 +718,11 @@ export function createSeed(): State {
   const { posts, adMaterials, attendees } = buildPerformance(brands, campaigns);
   const automationSavedAt: Record<string, string> = {};
   const automationColumns: Record<string, ColumnConfig[]> = {};
+  const automationLinks: Record<string, string> = {};
   for (const b of brands) {
     automationSavedAt[b.id] = isoTime(int(1, 36));
     automationColumns[b.id] = [];
+    automationLinks[b.id] = `https://docs.google.com/spreadsheets/d/1${Array.from({ length: 20 }, () => B62[int(0, 61)]).join("")}/edit`;
   }
 
   return {
@@ -733,6 +735,7 @@ export function createSeed(): State {
     automation,
     automationSavedAt,
     automationColumns,
+    automationLinks,
     posts,
     adMaterials,
     attendees,

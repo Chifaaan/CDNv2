@@ -1,6 +1,6 @@
 import type { ColumnConfig, ColumnType, ProjectType, SheetRow } from "./types";
 import { cleanPublishLink, extractShortcode } from "./shortcode";
-import { uid } from "./utils";
+import { normalizeFollowers, uid } from "./utils";
 
 export interface ColumnMeta {
   key: string;
@@ -215,11 +215,14 @@ export function deriveSheetRow(row: SheetRow, key: string, value: string): Sheet
       scrape: value ? (row.scrape === "success" ? "success" : "pending") : "pending",
     };
   }
+  if (key === "followers") {
+    return { ...row, followers: normalizeFollowers(value) };
+  }
   return row;
 }
 
 export function sheetDedupeKey(row: SheetRow) {
-  return row.shortcode || row.cleanLink || "";
+  return row.shortcode;
 }
 
 export function isRowEmpty(row: SheetRow, columns: ColumnMeta[]) {

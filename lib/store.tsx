@@ -432,6 +432,15 @@ export const cdn = {
     commit({ ...s, automationSavedAt: { ...s.automationSavedAt, [brandId]: nowIso() } });
   },
 
+  setAutomationLink(brandId: string, url: string) {
+    const s = getState();
+    commit({
+      ...s,
+      automationLinks: { ...s.automationLinks, [brandId]: url },
+      automationSavedAt: { ...s.automationSavedAt, [brandId]: nowIso() },
+    });
+  },
+
   setAutomationColumns(brandId: string, columns: ColumnConfig[]) {
     const s = getState();
     commit({

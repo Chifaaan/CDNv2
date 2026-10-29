@@ -38,6 +38,8 @@ export interface SheetGridProps<T extends { id: string }> {
   derive?: (row: T, key: string, value: string) => T;
   makeRow?: () => T;
   minRows?: number;
+  /** Extra empty rows rendered below the data (never persisted). */
+  padding?: number;
   duplicates?: Set<string>;
   dedupeKey?: (row: T) => string;
   marker?: (row: T) => "ok" | "bad" | "warn" | null;
@@ -69,6 +71,7 @@ function SheetGridInner<T extends { id: string }>(
     derive,
     makeRow,
     minRows = 14,
+    padding = 5,
     duplicates,
     dedupeKey,
     marker,
@@ -99,7 +102,7 @@ function SheetGridInner<T extends { id: string }>(
 
   const display = useMemo(() => {
     const list: T[] = [...rows];
-    const blanks = Math.max(5, minRows - rows.length);
+    const blanks = Math.max(padding, minRows - rows.length);
     for (let i = 0; i < blanks; i++) list.push(blank());
     return list;
   }, [rows, minRows, blank]);
